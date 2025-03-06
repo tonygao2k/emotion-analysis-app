@@ -65,3 +65,9 @@ tmp/
 temp/
 .temp/
 .tmp/
+
+# 日志文件
+*.log
+backend/*.log
+frontend-mui/*.log
+logs/
