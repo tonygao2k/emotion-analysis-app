@@ -14,23 +14,39 @@ import "./App.css";
 // 导入组件
 import EmotionTabs from "./components/EmotionTabs";
 
-// 创建深色主题
+// 创建清新风格的浅色主题
 const theme = createTheme({
 	palette: {
-		mode: "dark",
+		mode: "light",
 		primary: {
-			main: "#90caf9",
+			main: "#4caf50", // 清新绿色
+			light: "#80e27e",
+			dark: "#087f23",
 		},
 		secondary: {
-			main: "#f48fb1",
+			main: "#81d4fa", // 天空蓝
+			light: "#b6ffff",
+			dark: "#4ba3c7",
 		},
 		background: {
-			default: "#121212",
-			paper: "#1e1e1e",
+			default: "#f5f9f5", // 淡绿色背景
+			paper: "#ffffff",
 		},
 		text: {
-			primary: "#ffffff",
-			secondary: "#b0b0b0",
+			primary: "#2e7d32", // 深绿色文字
+			secondary: "#689f38", // 浅绿色文字
+		},
+		error: {
+			main: "#f44336",
+			light: "#e57373",
+		},
+		warning: {
+			main: "#ff9800",
+			light: "#ffb74d",
+		},
+		success: {
+			main: "#4caf50",
+			light: "#81c784",
 		},
 	},
 	typography: {
@@ -38,16 +54,26 @@ const theme = createTheme({
 		h1: {
 			fontSize: "2.5rem",
 			fontWeight: 500,
+			color: "#2e7d32", // 深绿色标题
 		},
 		h5: {
 			fontWeight: 500,
+			color: "#558b2f", // 浅绿色副标题
 		},
 	},
 	components: {
 		MuiPaper: {
 			styleOverrides: {
 				root: {
-					backgroundColor: "#1e1e1e",
+					backgroundColor: "#ffffff",
+					boxShadow: "0 4px 20px rgba(76, 175, 80, 0.15)", // 绿色阴影
+				},
+			},
+		},
+		MuiButton: {
+			styleOverrides: {
+				root: {
+					borderRadius: 8,
 				},
 			},
 		},
@@ -108,8 +134,9 @@ function App() {
 							onClose={clearError}
 							sx={{
 								mb: 2,
-								bgcolor: "#ef5350", // 浅红色背景
-								boxShadow: "0 4px 20px rgba(239, 83, 80, 0.3)",
+								bgcolor: "#ffcdd2", // 更柔和的红色背景
+								color: "#c62828", // 深红色文字
+								boxShadow: "0 4px 20px rgba(239, 83, 80, 0.15)",
 								borderLeft: "5px solid #e57373",
 								fontWeight: "bold",
 							}}
@@ -131,9 +158,10 @@ function App() {
 								severity='warning'
 								variant='filled'
 								sx={{
-									bgcolor: "#ef5350", // 使用浅红色背景
-									boxShadow: "0 4px 20px rgba(239, 83, 80, 0.3)",
-									borderLeft: "5px solid #e57373",
+									bgcolor: "#ffe0b2", // 柔和的橙色背景
+									color: "#e65100", // 深橙色文字
+									boxShadow: "0 4px 20px rgba(255, 152, 0, 0.15)",
+									borderLeft: "5px solid #ffb74d",
 									fontWeight: "bold",
 									animation: "pulse 2s infinite",
 								}}
@@ -148,9 +176,10 @@ function App() {
 								severity='success'
 								variant='filled'
 								sx={{
-									bgcolor: "#81c784", // 浅绿色背景
-									boxShadow: "0 4px 20px rgba(129, 199, 132, 0.3)",
-									borderLeft: "5px solid #a5d6a7",
+									bgcolor: "#c8e6c9", // 更柔和的绿色背景
+									color: "#2e7d32", // 深绿色文字
+									boxShadow: "0 4px 20px rgba(76, 175, 80, 0.15)",
+									borderLeft: "5px solid #81c784",
 									fontWeight: "bold",
 								}}
 							>
