@@ -94,6 +94,7 @@ function App() {
 			try {
 				const response = await fetch(`${API_BASE_URL}/status`);
 				const data = await response.json();
+
 				if (data.model_loaded) {
 					setModelLoaded(true);
 				} else {
