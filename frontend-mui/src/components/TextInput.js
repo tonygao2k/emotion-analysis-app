@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Grid, Button, TextField, LinearProgress, FormControl, InputLabel, Select, MenuItem, Typography, Paper, Alert } from "@mui/material";
+import { Box, Grid, Button, TextField, LinearProgress, FormControl, InputLabel, Select, MenuItem, Typography, Paper } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 
 function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedText, setError }) {
@@ -72,7 +72,7 @@ function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedTex
 
 				<Grid item xs={12} md={6}>
 					{showProgress && (
-						<Paper elevation={1} sx={{ p: 2, height: "100%", bgcolor: "#2d2d2d" }}>
+						<Paper elevation={1} sx={{ p: 2, height: "100%", bgcolor: "#1e1e1e", border: "1px solid #333333", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)" }}>
 							<Typography variant='subtitle1' gutterBottom>
 								{status}
 							</Typography>

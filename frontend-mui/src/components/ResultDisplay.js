@@ -20,11 +20,11 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				label: "情感分数",
 				data: emotionResult ? emotionResult.scores : [0, 0, 0, 0, 0],
 				backgroundColor: [
-					"#f44336", // 红色 - 非常消极
-					"#ff9800", // 橙色 - 消极
+					"#cf6679", // 红色 - 非常消极
+					"#ffb74d", // 橙色 - 消极
 					"#9e9e9e", // 灰色 - 中性
-					"#4caf50", // 绿色 - 积极
-					"#2196f3", // 蓝色 - 非常积极
+					"#03dac6", // 青色 - 积极
+					"#64ffda", // 浅青色 - 非常积极
 				],
 				borderWidth: 1,
 			},
@@ -39,18 +39,18 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				beginAtZero: true,
 				max: 1,
 				ticks: {
-					color: "#2e7d32",
+					color: "#b0bec5",
 				},
 				grid: {
-					color: "rgba(76, 175, 80, 0.1)",
+					color: "rgba(255, 255, 255, 0.1)",
 				},
 			},
 			x: {
 				ticks: {
-					color: "#2e7d32",
+					color: "#b0bec5",
 				},
 				grid: {
-					color: "rgba(76, 175, 80, 0.1)",
+					color: "rgba(255, 255, 255, 0.1)",
 				},
 			},
 		},
@@ -61,7 +61,7 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 			title: {
 				display: true,
 				text: "情感分析分数分布",
-				color: "#2e7d32",
+				color: "#03dac6",
 				font: {
 					size: 16,
 					weight: "bold",
@@ -79,23 +79,23 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 	const getEmotionIcon = result => {
 		switch (result) {
 			case "非常积极":
-				return <SentimentVerySatisfiedIcon fontSize='large' sx={{ color: "#2196f3" }} />;
+				return <SentimentVerySatisfiedIcon fontSize='large' sx={{ color: "#64ffda" }} />;
 			case "积极":
-				return <SentimentSatisfiedIcon fontSize='large' sx={{ color: "#4caf50" }} />;
+				return <SentimentSatisfiedIcon fontSize='large' sx={{ color: "#03dac6" }} />;
 			case "中性":
 				return <SentimentNeutralIcon fontSize='large' sx={{ color: "#9e9e9e" }} />;
 			case "消极":
-				return <SentimentDissatisfiedIcon fontSize='large' sx={{ color: "#ff9800" }} />;
+				return <SentimentDissatisfiedIcon fontSize='large' sx={{ color: "#ffb74d" }} />;
 			case "非常消极":
-				return <SentimentVeryDissatisfiedIcon fontSize='large' sx={{ color: "#f44336" }} />;
+				return <SentimentVeryDissatisfiedIcon fontSize='large' sx={{ color: "#cf6679" }} />;
 			default:
 				return <SentimentNeutralIcon fontSize='large' />;
 		}
 	};
 
 	return (
-		<Paper elevation={2} sx={{ p: 3, bgcolor: "#ffffff", boxShadow: "0 4px 20px rgba(76, 175, 80, 0.15)", border: "1px solid #e0f2e0" }}>
-			<Typography variant='h5' component='h2' gutterBottom sx={{ color: "#2e7d32", fontWeight: 500 }}>
+		<Paper elevation={2} sx={{ p: 3, bgcolor: "#1e1e1e", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)", border: "1px solid #333333" }}>
+			<Typography variant='h5' component='h2' gutterBottom sx={{ color: "#ffffff", fontWeight: 500 }}>
 				分析结果
 			</Typography>
 
@@ -119,40 +119,40 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				</Grid>
 
 				<Grid item xs={12} md={6}>
-					<Paper elevation={1} sx={{ p: 2, bgcolor: "#f5f9f5", border: "1px solid #e0f2e0", boxShadow: "0 4px 20px rgba(76, 175, 80, 0.1)" }}>
-						<Typography variant='h6' gutterBottom sx={{ color: "#2e7d32", fontWeight: 500 }}>
+					<Paper elevation={1} sx={{ p: 2, bgcolor: "#252525", border: "1px solid #333333", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)" }}>
+						<Typography variant='h6' gutterBottom sx={{ color: "#03dac6", fontWeight: 500 }}>
 							情感分析说明
 						</Typography>
 						<List>
 							<ListItem>
 								<ListItemIcon>
-									<SentimentVeryDissatisfiedIcon sx={{ color: "#f44336" }} />
+									<SentimentVeryDissatisfiedIcon sx={{ color: "#cf6679" }} />
 								</ListItemIcon>
-								<ListItemText primary='非常消极' secondary='表达强烈的负面情绪' primaryTypographyProps={{ style: { color: '#d32f2f', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#e57373' } }} />
+								<ListItemText primary='非常消极' secondary='表达强烈的负面情绪' primaryTypographyProps={{ style: { color: '#cf6679', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#f5f5f5' } }} />
 							</ListItem>
 							<ListItem>
 								<ListItemIcon>
-									<SentimentDissatisfiedIcon sx={{ color: "#ff9800" }} />
+									<SentimentDissatisfiedIcon sx={{ color: "#ffb74d" }} />
 								</ListItemIcon>
-								<ListItemText primary='消极' secondary='表达一般的负面情绪' primaryTypographyProps={{ style: { color: '#e65100', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#ff9800' } }} />
+								<ListItemText primary='消极' secondary='表达一般的负面情绪' primaryTypographyProps={{ style: { color: '#ffb74d', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#f5f5f5' } }} />
 							</ListItem>
 							<ListItem>
 								<ListItemIcon>
 									<SentimentNeutralIcon sx={{ color: "#9e9e9e" }} />
 								</ListItemIcon>
-								<ListItemText primary='中性' secondary='没有明显的情感倾向' primaryTypographyProps={{ style: { color: '#757575', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#9e9e9e' } }} />
+								<ListItemText primary='中性' secondary='没有明显的情感倾向' primaryTypographyProps={{ style: { color: '#9e9e9e', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#f5f5f5' } }} />
 							</ListItem>
 							<ListItem>
 								<ListItemIcon>
-									<SentimentSatisfiedIcon sx={{ color: "#4caf50" }} />
+									<SentimentSatisfiedIcon sx={{ color: "#03dac6" }} />
 								</ListItemIcon>
-								<ListItemText primary='积极' secondary='表达一般的正面情绪' primaryTypographyProps={{ style: { color: '#2e7d32', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#4caf50' } }} />
+								<ListItemText primary='积极' secondary='表达一般的正面情绪' primaryTypographyProps={{ style: { color: '#03dac6', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#f5f5f5' } }} />
 							</ListItem>
 							<ListItem>
 								<ListItemIcon>
-									<SentimentVerySatisfiedIcon sx={{ color: "#2196f3" }} />
+									<SentimentVerySatisfiedIcon sx={{ color: "#64ffda" }} />
 								</ListItemIcon>
-								<ListItemText primary='非常积极' secondary='表达强烈的正面情绪' primaryTypographyProps={{ style: { color: '#1565c0', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#2196f3' } }} />
+								<ListItemText primary='非常积极' secondary='表达强烈的正面情绪' primaryTypographyProps={{ style: { color: '#64ffda', fontWeight: 500 } }} secondaryTypographyProps={{ style: { color: '#f5f5f5' } }} />
 							</ListItem>
 						</List>
 					</Paper>

@@ -15,7 +15,7 @@ const RecordingAnimation = styled("div")(({ theme }) => ({
 		width: "4px",
 		height: "16px",
 		margin: "0 2px",
-		backgroundColor: "#4caf50", // 清新绿色
+		backgroundColor: "#03dac6", // 浅蓝色，与暗色主题匹配
 		animation: "recording-animation 1.2s infinite ease-in-out",
 		animationDelay: props => `${props.delay}s`,
 	},
@@ -191,8 +191,8 @@ function SpeechInput({ modelLoaded, apiBaseUrl, onRecognitionResult, recognizedT
 				</Grid>
 
 				<Grid item xs={12} md={6}>
-					<Paper elevation={1} sx={{ p: 2, height: "100%", bgcolor: "#f5f9f5", border: "1px solid #e0f2e0", boxShadow: "0 4px 20px rgba(76, 175, 80, 0.1)" }}>
-						<Typography variant='subtitle1' gutterBottom sx={{ color: "#2e7d32", fontWeight: 500 }}>
+					<Paper elevation={1} sx={{ p: 2, height: "100%", bgcolor: "#1e1e1e", border: "1px solid #333333", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)" }}>
+						<Typography variant='subtitle1' gutterBottom sx={{ color: "#03dac6", fontWeight: 500 }}>
 							{status}
 						</Typography>
 
@@ -226,18 +226,18 @@ function SpeechInput({ modelLoaded, apiBaseUrl, onRecognitionResult, recognizedT
 						sx={{
 							"& .MuiOutlinedInput-root": {
 								"& fieldset": {
-									borderColor: "rgba(76, 175, 80, 0.3)",
+									borderColor: "rgba(3, 218, 198, 0.3)",
 								},
 								"&:hover fieldset": {
-									borderColor: "rgba(76, 175, 80, 0.6)",
+									borderColor: "rgba(3, 218, 198, 0.6)",
 								},
-								bgcolor: "#ffffff",
+								bgcolor: "#1e1e1e",
 							},
 							"& .MuiInputLabel-root": {
-								color: "#558b2f",
+								color: "#b0bec5",
 							},
 							"& .MuiInputBase-input": {
-								color: "#2e7d32",
+								color: "#ffffff",
 							},
 						}}
 					/>

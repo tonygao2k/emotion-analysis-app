@@ -1,52 +1,53 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
 import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
-import Zoom from "@mui/material/Zoom";
-import Fade from "@mui/material/Fade";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import "./App.css";
 
 // 导入组件
 import EmotionTabs from "./components/EmotionTabs";
 
-// 创建清新风格的浅色主题
+// 创建现代风格的暗色主题
 const theme = createTheme({
 	palette: {
-		mode: "light",
+		mode: "dark",
 		primary: {
-			main: "#4caf50", // 清新绿色
-			light: "#80e27e",
-			dark: "#087f23",
+			main: "#03dac6", // 青色
+			light: "#64ffda",
+			dark: "#00a896",
 		},
 		secondary: {
-			main: "#81d4fa", // 天空蓝
-			light: "#b6ffff",
-			dark: "#4ba3c7",
+			main: "#64ffda", // 浅青色
+			light: "#9effff",
+			dark: "#14b5a9",
 		},
 		background: {
-			default: "#f5f9f5", // 淡绿色背景
-			paper: "#ffffff",
+			default: "#121212", // 深灰色背景
+			paper: "#1e1e1e", // 略浅的深灰色
 		},
 		text: {
-			primary: "#2e7d32", // 深绿色文字
-			secondary: "#689f38", // 浅绿色文字
+			primary: "#ffffff", // 白色文字
+			secondary: "#b0bec5", // 浅灰色文字
 		},
 		error: {
-			main: "#f44336",
-			light: "#e57373",
+			main: "#cf6679",
+			light: "#ff95a2",
 		},
 		warning: {
-			main: "#ff9800",
-			light: "#ffb74d",
+			main: "#ffb74d",
+			light: "#ffe97d",
 		},
 		success: {
 			main: "#4caf50",
-			light: "#81c784",
+			light: "#80e27e",
 		},
 	},
 	typography: {
@@ -54,19 +55,19 @@ const theme = createTheme({
 		h1: {
 			fontSize: "2.5rem",
 			fontWeight: 500,
-			color: "#2e7d32", // 深绿色标题
+			color: "#03dac6", // 青色标题
 		},
 		h5: {
 			fontWeight: 500,
-			color: "#558b2f", // 浅绿色副标题
+			color: "#b0bec5", // 浅灰色副标题
 		},
 	},
 	components: {
 		MuiPaper: {
 			styleOverrides: {
 				root: {
-					backgroundColor: "#ffffff",
-					boxShadow: "0 4px 20px rgba(76, 175, 80, 0.15)", // 绿色阴影
+					backgroundColor: "#1e1e1e",
+					boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)", // 黑色阴影
 				},
 			},
 		},
@@ -118,6 +119,27 @@ function App() {
 		<ThemeProvider theme={theme}>
 			<CssBaseline />
 			<Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
+				{/* 右上角状态指示器 */}
+				<Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1000 }}>
+					{!modelLoaded ? (
+						<Chip
+							icon={<CircularProgress size={16} color="inherit" />}
+							label="模型加载中..."
+							color="warning"
+							variant="outlined"
+							sx={{ fontWeight: 'medium' }}
+						/>
+					) : (
+						<Chip
+							icon={<CheckCircleIcon />}
+							label="模型已加载"
+							color="success"
+							variant="outlined"
+							sx={{ fontWeight: 'medium' }}
+						/>
+					)}
+				</Box>
+
 				<Box sx={{ mb: 4, textAlign: "center" }}>
 					<Typography variant='h1' component='h1' gutterBottom>
 						情感分析系统
@@ -128,68 +150,27 @@ function App() {
 				</Box>
 
 				{error && (
-					<Zoom in={!!error}>
-						<Alert
-							severity='error'
-							variant='filled'
-							onClose={clearError}
-							sx={{
-								mb: 2,
-								bgcolor: "#ffcdd2", // 更柔和的红色背景
-								color: "#c62828", // 深红色文字
-								boxShadow: "0 4px 20px rgba(239, 83, 80, 0.15)",
-								borderLeft: "5px solid #e57373",
-								fontWeight: "bold",
-							}}
-						>
-							<AlertTitle sx={{ fontSize: "1.2rem", fontWeight: "bold" }}>错误</AlertTitle>
-							{error}
-						</Alert>
-					</Zoom>
+					<Alert
+						severity='error'
+						variant='filled'
+						onClose={clearError}
+						sx={{
+							mb: 2,
+							bgcolor: "#31191c", // 深红色背景
+							color: "#cf6679", // 红色文字
+							boxShadow: "0 4px 20px rgba(207, 102, 121, 0.2)",
+							borderLeft: "5px solid #cf6679",
+							fontWeight: "bold",
+						}}
+					>
+						<AlertTitle sx={{ fontSize: "1.2rem", fontWeight: "bold" }}>错误</AlertTitle>
+						{error}
+					</Alert>
 				)}
 
 				<Paper elevation={3} sx={{ p: 0, mb: 4 }}>
 					<EmotionTabs modelLoaded={modelLoaded} apiBaseUrl={API_BASE_URL} setError={setError} />
 				</Paper>
-
-				<Box sx={{ mt: 2 }}>
-					{!modelLoaded ? (
-						<Zoom in={true}>
-							<Alert
-								severity='warning'
-								variant='filled'
-								sx={{
-									bgcolor: "#ffe0b2", // 柔和的橙色背景
-									color: "#e65100", // 深橙色文字
-									boxShadow: "0 4px 20px rgba(255, 152, 0, 0.15)",
-									borderLeft: "5px solid #ffb74d",
-									fontWeight: "bold",
-									animation: "pulse 2s infinite",
-								}}
-							>
-								<AlertTitle sx={{ fontSize: "1.2rem", fontWeight: "bold" }}>模型加载中</AlertTitle>
-								请稍候，模型正在后台加载。
-							</Alert>
-						</Zoom>
-					) : (
-						<Fade in={true} timeout={1000}>
-							<Alert
-								severity='success'
-								variant='filled'
-								sx={{
-									bgcolor: "#c8e6c9", // 更柔和的绿色背景
-									color: "#2e7d32", // 深绿色文字
-									boxShadow: "0 4px 20px rgba(76, 175, 80, 0.15)",
-									borderLeft: "5px solid #81c784",
-									fontWeight: "bold",
-								}}
-							>
-								<AlertTitle sx={{ fontSize: "1.2rem", fontWeight: "bold" }}>模型已加载</AlertTitle>
-								您可以开始使用情感分析功能。
-							</Alert>
-						</Fade>
-					)}
-				</Box>
 			</Container>
 		</ThemeProvider>
 	);
