@@ -71,3 +71,6 @@ temp/
 backend/*.log
 frontend-mui/*.log
 logs/
+
+# windsurf rules
+.windsurfrules

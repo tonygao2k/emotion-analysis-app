@@ -20,6 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 app = Flask(__name__)
 CORS(app)  # 启用CORS支持跨域请求
 
@@ -30,6 +31,7 @@ ALLOWED_EXTENSIONS = {"wav", "mp3", "flac"}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 限制上传文件大小为16MB
+
 
 # 全局变量
 model = None
