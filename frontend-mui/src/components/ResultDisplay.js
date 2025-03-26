@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Grid, Typography, Paper, List, ListItem, ListItemIcon, ListItemText } from "@mui/material";
+import { Box, Grid, Typography, Paper, List, ListItem, ListItemIcon, ListItemText, Divider, Chip } from "@mui/material";
 import { Bar } from "react-chartjs-2";
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from "chart.js";
 import SentimentVerySatisfiedIcon from "@mui/icons-material/SentimentVerySatisfied";
@@ -7,18 +7,37 @@ import SentimentSatisfiedIcon from "@mui/icons-material/SentimentSatisfied";
 import SentimentNeutralIcon from "@mui/icons-material/SentimentNeutral";
 import SentimentDissatisfiedIcon from "@mui/icons-material/SentimentDissatisfied";
 import SentimentVeryDissatisfiedIcon from "@mui/icons-material/SentimentVeryDissatisfied";
+import VideocamIcon from "@mui/icons-material/Videocam";
+import MicIcon from "@mui/icons-material/Mic";
+import TextFormatIcon from "@mui/icons-material/TextFormat";
 
 // 注册Chart.js组件
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 function ResultDisplay({ emotionResult, recognizedText }) {
+	// 判断是否为视频分析结果
+	const isVideoAnalysis = emotionResult && emotionResult.video_emotion;
+	
+	// 获取情感分数数据
+	const getScores = () => {
+		if (!emotionResult) return [0, 0, 0, 0, 0];
+		
+		// 如果是视频分析，使用文本情感的分数（如果有）
+		if (isVideoAnalysis && emotionResult.text_emotion && emotionResult.text_emotion.scores) {
+			return emotionResult.text_emotion.scores;
+		}
+		
+		// 否则使用普通情感分析的分数
+		return emotionResult.scores || [0, 0, 0, 0, 0];
+	};
+	
 	// 图表配置
 	const chartData = {
 		labels: ["非常消极", "消极", "中性", "积极", "非常积极"],
 		datasets: [
 			{
 				label: "情感分数",
-				data: emotionResult ? emotionResult.scores : [0, 0, 0, 0, 0],
+				data: getScores(),
 				backgroundColor: [
 					"#cf6679", // 红色 - 非常消极
 					"#ffb74d", // 橙色 - 消极
@@ -92,6 +111,148 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				return <SentimentNeutralIcon fontSize='large' />;
 		}
 	};
+	
+	// 获取情感颜色
+	const getEmotionColor = result => {
+		switch (result) {
+			case "非常积极":
+				return "#64ffda";
+			case "积极":
+				return "#03dac6";
+			case "中性":
+				return "#9e9e9e";
+			case "消极":
+				return "#ffb74d";
+			case "非常消极":
+				return "#cf6679";
+			default:
+				return "#9e9e9e";
+		}
+	};
+	
+	// 渲染视频分析结果
+	const renderVideoAnalysisResult = () => {
+		if (!isVideoAnalysis) return null;
+		
+		const videoEmotion = emotionResult.video_emotion;
+		const textEmotion = emotionResult.text_emotion;
+		const combinedResult = emotionResult.result;
+		
+		// 将英文情感映射为中文
+		const emotionMapping = {
+			'angry': '愤怒',
+			'disgust': '厌恶',
+			'fear': '恐惧',
+			'happy': '高兴',
+			'sad': '悲伤',
+			'surprise': '惊讶',
+			'neutral': '中性'
+		};
+		
+		// 获取主要面部表情
+		const dominantEmotion = videoEmotion.details.dominant;
+		const dominantEmotionChinese = emotionMapping[dominantEmotion] || dominantEmotion;
+		const confidence = Math.round(videoEmotion.details.confidence * 100);
+		
+		return (
+			<Box sx={{ mt: 3 }}>
+				<Typography variant="h6" gutterBottom sx={{ color: "#03dac6", fontWeight: 500 }}>
+					多模态情感分析详情
+				</Typography>
+				
+				<Grid container spacing={2} sx={{ mb: 2 }}>
+					<Grid item xs={12} md={4}>
+						<Paper elevation={1} sx={{ p: 2, bgcolor: "#252525", height: '100%' }}>
+							<Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+								<VideocamIcon sx={{ color: "#03dac6", mr: 1 }} />
+								<Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+									视频面部表情分析
+								</Typography>
+							</Box>
+							<Divider sx={{ mb: 2 }} />
+							<Typography variant="body2" color="text.secondary" paragraph>
+								主要表情: <Chip 
+									label={dominantEmotionChinese} 
+									size="small" 
+									sx={{ 
+										bgcolor: 'rgba(3, 218, 198, 0.1)', 
+										color: '#03dac6',
+										fontWeight: 'bold',
+										ml: 1
+									}} 
+								/>
+							</Typography>
+							<Typography variant="body2" color="text.secondary" paragraph>
+								表情置信度: {confidence}%
+							</Typography>
+							<Typography variant="body2" color="text.secondary" paragraph>
+								情感结果: <Chip 
+									label={videoEmotion.result} 
+									size="small" 
+									sx={{ 
+										bgcolor: `${getEmotionColor(videoEmotion.result)}20`, 
+										color: getEmotionColor(videoEmotion.result),
+										fontWeight: 'bold',
+										ml: 1
+									}} 
+								/>
+							</Typography>
+						</Paper>
+					</Grid>
+					
+					<Grid item xs={12} md={4}>
+						<Paper elevation={1} sx={{ p: 2, bgcolor: "#252525", height: '100%' }}>
+							<Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+								<MicIcon sx={{ color: "#03dac6", mr: 1 }} />
+								<Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+									视频语音分析
+								</Typography>
+							</Box>
+							<Divider sx={{ mb: 2 }} />
+							<Typography variant="body2" color="text.secondary" paragraph>
+								识别文本: "{recognizedText}"
+							</Typography>
+							{textEmotion && textEmotion.success && (
+								<Typography variant="body2" color="text.secondary" paragraph>
+									情感结果: <Chip 
+										label={textEmotion.result} 
+										size="small" 
+										sx={{ 
+											bgcolor: `${getEmotionColor(textEmotion.result)}20`, 
+											color: getEmotionColor(textEmotion.result),
+											fontWeight: 'bold',
+											ml: 1
+										}} 
+									/>
+								</Typography>
+							)}
+						</Paper>
+					</Grid>
+					
+					<Grid item xs={12} md={4}>
+						<Paper elevation={1} sx={{ p: 2, bgcolor: "#252525", height: '100%' }}>
+							<Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+								<TextFormatIcon sx={{ color: "#03dac6", mr: 1 }} />
+								<Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+									综合情感分析
+								</Typography>
+							</Box>
+							<Divider sx={{ mb: 2 }} />
+							<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", mb: 2 }}>
+								{getEmotionIcon(combinedResult)}
+								<Typography variant='h5' component='span' sx={{ ml: 1, color: getEmotionColor(combinedResult) }}>
+									{combinedResult}
+								</Typography>
+							</Box>
+							<Typography variant="body2" color="text.secondary" align="center">
+								面部表情和语音内容的综合分析结果
+							</Typography>
+						</Paper>
+					</Grid>
+				</Grid>
+			</Box>
+		);
+	};
 
 	return (
 		<Paper elevation={2} sx={{ p: 3, bgcolor: "#1e1e1e", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.5)", border: "1px solid #333333" }}>
@@ -108,9 +269,11 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 								{emotionResult.result}
 							</Typography>
 						</Box>
-						<Typography variant='body1' color='text.secondary' sx={{ opacity: 0.8 }}>
-							文本: "{recognizedText}"
-						</Typography>
+						{!isVideoAnalysis && (
+							<Typography variant='body1' color='text.secondary' sx={{ opacity: 0.8 }}>
+								文本: "{recognizedText}"
+							</Typography>
+						)}
 					</Box>
 
 					<Box sx={{ height: 300 }}>
@@ -158,6 +321,9 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 					</Paper>
 				</Grid>
 			</Grid>
+			
+			{/* 视频分析结果部分 */}
+			{renderVideoAnalysisResult()}
 		</Paper>
 	);
 }

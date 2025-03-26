@@ -82,11 +82,12 @@ const theme = createTheme({
 });
 
 // API基础URL
-const API_BASE_URL = "http://localhost:5001/api";
+const API_BASE_URL = "http://localhost:8080/api";
 
 function App() {
 	// 状态变量
 	const [modelLoaded, setModelLoaded] = useState(false);
+	const [modelLoading, setModelLoading] = useState(false);
 	const [error, setError] = useState(null);
 
 	// 检查模型加载状态
@@ -96,13 +97,21 @@ function App() {
 				const response = await fetch(`${API_BASE_URL}/status`);
 				const data = await response.json();
 
-				if (data.model_loaded) {
+				if (data.loaded) {
 					setModelLoaded(true);
+					setModelLoading(false);
+				} else if (data.loading) {
+					setModelLoaded(false);
+					setModelLoading(true);
+					setTimeout(checkModelStatus, 2000);
 				} else {
+					setModelLoaded(false);
+					setModelLoading(false);
 					setTimeout(checkModelStatus, 2000);
 				}
 			} catch (error) {
 				console.error("获取模型状态出错:", error);
+				setError("无法连接到服务器，请检查后端服务是否运行");
 				setTimeout(checkModelStatus, 5000);
 			}
 		};
@@ -126,10 +135,18 @@ function App() {
 				<Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
 					{/* 右上角状态指示器 */}
 					<Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1000 }}>
-						{!modelLoaded ? (
+						{!modelLoaded && !modelLoading ? (
 							<Chip
 								icon={<CircularProgress size={16} color="inherit" />}
 								label="模型加载中..."
+								color="warning"
+								variant="outlined"
+								sx={{ fontWeight: 'medium' }}
+							/>
+						) : modelLoading ? (
+							<Chip
+								icon={<CircularProgress size={16} color="inherit" />}
+								label="模型正在加载..."
 								color="warning"
 								variant="outlined"
 								sx={{ fontWeight: 'medium' }}

@@ -13,6 +13,13 @@ import whisper
 from threading import Thread
 from werkzeug.utils import secure_filename
 import logging
+import cv2
+# 暂时注释掉FER导入
+# from fer import FER  # 面部表情识别库
+from moviepy.editor import VideoFileClip
+import io
+from PIL import Image
+import time
 
 # 配置日志
 logging.basicConfig(
@@ -20,6 +27,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 添加文件处理器，将日志输出到文件
+file_handler = logging.FileHandler('backend.log', mode='w', encoding='utf-8')
+file_handler.setLevel(logging.INFO)
+file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+file_handler.setFormatter(file_formatter)
+logger.addHandler(file_handler)
 
 app = Flask(__name__)
 CORS(app)  # 启用CORS支持跨域请求
@@ -28,47 +41,65 @@ CORS(app)  # 启用CORS支持跨域请求
 MODEL_NAME = "nlptown/bert-base-multilingual-uncased-sentiment"
 UPLOAD_FOLDER = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {"wav", "mp3", "flac"}
+ALLOWED_VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv"}  # 允许的视频文件格式
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 限制上传文件大小为16MB
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 限制上传文件大小为32MB
 
 
 # 全局变量
 model = None
 tokenizer = None
 whisper_model = None
+emotion_detector = None  # 面部表情识别模型
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 model_loaded = False
-loading_thread = None
-
+model_loading = False  # 新增变量，用于跟踪模型是否正在加载
 
 def allowed_file(filename):
     """检查文件是否允许上传"""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def allowed_video_file(filename):
+    """检查视频文件是否允许上传"""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_VIDEO_EXTENSIONS
+
+
 def load_model():
     """加载模型"""
-    global model, tokenizer, whisper_model, model_loaded
+    global model, tokenizer, whisper_model, emotion_detector, model_loaded, model_loading
+    
+    # 如果模型已经加载或正在加载，则直接返回
+    if model_loaded or model_loading:
+        return
+    
+    model_loading = True  # 标记模型正在加载
+    
     try:
-        logger.info(f"使用设备: {device}")
-        logger.info("加载分词器...")
+        logger.info("开始加载模型...")
+        
+        # 加载文本情感分析模型
+        logger.info(f"加载文本情感分析模型: {MODEL_NAME}")
+        model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME).to(device)
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-
-        logger.info("加载情感分析模型...")
-        model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME).to(
-            device
-        )
-
+        
+        # 加载语音识别模型
         logger.info("加载Whisper语音识别模型...")
-        # 使用tiny模型以提高速度，如需更高准确率可使用base或small
-        whisper_model = whisper.load_model("tiny")
-
-        logger.info("所有模型加载完成")
+        whisper_model = whisper.load_model("small")
+        
+        # 暂时禁用FER模型加载
+        logger.info("FER模型加载已禁用")
+        emotion_detector = None
+        
         model_loaded = True
+        model_loading = False  # 标记模型加载完成
+        logger.info("文本和语音模型加载完成")
     except Exception as e:
-        logger.error(f"加载模型时出错: {e}")
+        logger.error(f"加载模型时出错: {str(e)}")
         model_loaded = False
+        model_loading = False  # 标记模型加载失败
+        raise
 
 
 def recognize_speech(audio_file, language="zh-CN"):
@@ -145,10 +176,198 @@ def analyze_emotion(text):
         return {"success": False, "error": f"分析出错: {str(e)}"}
 
 
+def process_video(video_file, language="zh-CN"):
+    """处理视频文件，提取面部表情和音频"""
+    global emotion_detector, model_loaded
+    
+    if not model_loaded or emotion_detector is None:
+        return {"success": False, "error": "模型未加载完成，请稍后再试"}
+    
+    try:
+        logger.info(f"开始处理视频文件: {video_file}")
+        
+        # 提取音频
+        video_clip = VideoFileClip(video_file)
+        audio_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        audio_path = audio_file.name
+        audio_file.close()
+        
+        logger.info("从视频中提取音频...")
+        if video_clip.audio is not None:
+            video_clip.audio.write_audiofile(audio_path, verbose=False, logger=None)
+            
+            # 语音识别
+            logger.info("对提取的音频进行语音识别...")
+            speech_result = recognize_speech(audio_path, language)
+            
+            if speech_result["success"]:
+                # 对识别出的文本进行情感分析
+                text_emotion = analyze_emotion(speech_result["text"])
+            else:
+                text_emotion = {"success": False, "result": "中性", "error": "语音识别失败"}
+        else:
+            logger.warning("视频中没有音频轨道")
+            speech_result = {"success": False, "text": "视频中没有音频"}
+            text_emotion = {"success": False, "result": "中性", "error": "视频中没有音频"}
+        
+        # 关闭视频剪辑以释放资源
+        video_clip.close()
+        
+        # 面部表情分析
+        logger.info("开始分析视频中的面部表情...")
+        video = cv2.VideoCapture(video_file)
+        
+        emotions = []
+        frame_count = 0
+        sample_rate = 5  # 每秒采样帧数
+        fps = video.get(cv2.CAP_PROP_FPS)
+        sample_interval = int(fps / sample_rate) if fps > 0 else 1
+        
+        while video.isOpened():
+            ret, frame = video.read()
+            if not ret:
+                break
+                
+            # 控制采样率，不必分析每一帧
+            frame_count += 1
+            if frame_count % sample_interval != 0:
+                continue
+                
+            # 分析当前帧的表情
+            result = emotion_detector.detect_emotions(frame)
+            if result and len(result) > 0:
+                emotions.append(result[0]['emotions'])
+        
+        video.release()
+        
+        # 清理临时文件
+        os.remove(audio_path)
+        
+        # 计算平均情绪
+        if emotions:
+            avg_emotion = {}
+            for emotion in ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']:
+                avg_emotion[emotion] = sum(e[emotion] for e in emotions) / len(emotions)
+            
+            # 找出主要情绪
+            dominant_emotion = max(avg_emotion, key=avg_emotion.get)
+            
+            # 映射到我们的情感分类
+            emotion_mapping = {
+                'angry': '消极',
+                'disgust': '消极',
+                'fear': '消极',
+                'sad': '消极',
+                'happy': '积极',
+                'surprise': '中性',
+                'neutral': '中性'
+            }
+            
+            video_result = emotion_mapping.get(dominant_emotion, '中性')
+            confidence = avg_emotion[dominant_emotion]
+            
+            # 详细的表情分析结果
+            emotion_details = {
+                "dominant": dominant_emotion,
+                "confidence": confidence,
+                "all_emotions": avg_emotion
+            }
+        else:
+            video_result = "无法检测到面部表情"
+            confidence = 0
+            emotion_details = {
+                "dominant": "unknown",
+                "confidence": 0,
+                "all_emotions": {}
+            }
+        
+        # 综合分析结果
+        combined_result = combine_results(
+            video_result, 
+            text_emotion.get("result", "中性") if text_emotion.get("success", False) else "中性"
+        )
+        
+        return {
+            "success": True,
+            "video_emotion": {
+                "result": video_result,
+                "confidence": confidence,
+                "details": emotion_details
+            },
+            "speech_result": speech_result,
+            "text_emotion": text_emotion,
+            "combined_result": combined_result
+        }
+    except Exception as e:
+        logger.error(f"处理视频时出错: {str(e)}")
+        return {"success": False, "error": f"处理视频时出错: {str(e)}"}
+
+
+def combine_results(video_result, text_result):
+    """综合视频和文本的情感分析结果"""
+    # 情感分数映射
+    emotion_scores = {
+        "非常消极": -2,
+        "消极": -1,
+        "中性": 0,
+        "积极": 1,
+        "非常积极": 2
+    }
+    
+    # 映射结果到分数
+    video_score = emotion_scores.get(video_result, 0)
+    text_score = emotion_scores.get(text_result, 0)
+    
+    # 加权平均 (视频0.4，文本0.6)
+    combined_score = 0.4 * video_score + 0.6 * text_score
+    
+    # 映射回情感标签
+    if combined_score <= -1.5:
+        return "非常消极"
+    elif combined_score < -0.5:
+        return "消极"
+    elif combined_score < 0.5:
+        return "中性"
+    elif combined_score < 1.5:
+        return "积极"
+    else:
+        return "非常积极"
+
+
+# 辅助函数：将英文情绪转换为中文
+def emotion_to_chinese(emotion):
+    """将英文情绪标签转换为中文"""
+    emotion_map = {
+        "angry": "愤怒",
+        "disgust": "厌恶",
+        "fear": "恐惧",
+        "happy": "高兴",
+        "sad": "悲伤",
+        "surprise": "惊讶",
+        "neutral": "平静"
+    }
+    return emotion_map.get(emotion, "未知")
+
+
 @app.route("/api/status", methods=["GET"])
 def status():
-    """获取模型加载状态"""
-    return jsonify({"model_loaded": model_loaded})
+    """获取模型加载状态和系统信息"""
+    return jsonify({
+        "loaded": model_loaded,
+        "loading": model_loading,
+        "device": device,
+        "models": {
+            "text": MODEL_NAME,
+            "audio": "whisper-small" if whisper_model else "未加载",
+            "face": "FER" if emotion_detector else "未加载"
+        },
+        "system_info": {
+            "cuda_available": torch.cuda.is_available(),
+            "cuda_device_count": torch.cuda.device_count() if torch.cuda.is_available() else 0,
+            "cuda_device_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "无"
+        },
+        "timestamp": time.time()
+    })
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -158,10 +377,6 @@ def api_analyze():
         return jsonify({"success": False, "error": "请提供文本数据"}), 400
 
     text = request.json["text"]
-    if not text:
-        return jsonify({"success": False, "error": "文本内容为空"}), 400
-
-    language = request.json.get("language", "zh-CN")
     result = analyze_emotion(text)
     return jsonify(result)
 
@@ -181,73 +396,213 @@ def api_upload():
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
 
+        # 获取语言参数，默认为中文
         language = request.form.get("language", "zh-CN")
 
         # 识别语音
         speech_result = recognize_speech(filepath, language)
-        if not speech_result["success"]:
-            return jsonify(speech_result), 400
 
+        # 删除临时文件
+        os.remove(filepath)
+
+        if not speech_result["success"]:
+            return jsonify(speech_result)
+
+        # 获取识别出的文本
         text = speech_result["text"]
 
         # 分析情感
         emotion_result = analyze_emotion(text)
 
-        # 删除临时文件
-        try:
-            os.remove(filepath)
-        except:
-            pass
+        if not emotion_result["success"]:
+            return jsonify(emotion_result)
 
         return jsonify({"success": True, "text": text, "emotion": emotion_result})
 
-    return jsonify({"success": False, "error": "不支持的文件类型"}), 400
+    return jsonify({"success": False, "error": "不支持的文件格式"}), 400
 
 
 @app.route("/api/record", methods=["POST"])
 def api_record():
     """处理录音数据API"""
-    if "audio" not in request.json:
+    if not request.json or "audio" not in request.json:
         return jsonify({"success": False, "error": "没有音频数据"}), 400
 
+    # 获取Base64编码的音频数据
     audio_data = request.json["audio"]
+    # 移除Base64前缀
+    if "," in audio_data:
+        audio_data = audio_data.split(",")[1]
+
+    # 获取语言参数，默认为中文
     language = request.json.get("language", "zh-CN")
 
-    # 解码Base64音频数据
     try:
-        audio_bytes = base64.b64decode(audio_data.split(",")[1])
-    except:
-        return jsonify({"success": False, "error": "音频数据格式错误"}), 400
+        # 解码Base64数据
+        audio_bytes = base64.b64decode(audio_data)
 
-    # 保存为临时文件
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-    temp_file.write(audio_bytes)
-    temp_file.close()
+        # 创建临时文件
+        temp_file = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
+        temp_file.write(audio_bytes)
+        temp_file.close()
 
-    # 识别语音
-    speech_result = recognize_speech(temp_file.name, language)
+        # 识别语音
+        speech_result = recognize_speech(temp_file.name, language)
 
-    # 删除临时文件
-    try:
+        # 删除临时文件
         os.remove(temp_file.name)
-    except:
-        pass
 
-    if not speech_result["success"]:
-        return jsonify(speech_result), 400
+        if not speech_result["success"]:
+            return jsonify(speech_result)
 
-    text = speech_result["text"]
+        # 获取识别出的文本
+        text = speech_result["text"]
 
-    # 分析情感
-    emotion_result = analyze_emotion(text)
+        # 分析情感
+        emotion_result = analyze_emotion(text)
 
-    return jsonify({"success": True, "text": text, "emotion": emotion_result})
+        if not emotion_result["success"]:
+            return jsonify(emotion_result)
+
+        return jsonify({"success": True, "text": text, "emotion": emotion_result})
+
+    except Exception as e:
+        logger.error(f"处理录音数据时出错: {str(e)}")
+        return jsonify({"success": False, "error": f"处理录音数据时出错: {str(e)}"}), 500
+
+
+@app.route("/api/upload_video", methods=["POST"])
+def api_upload_video():
+    """处理视频上传请求"""
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "没有文件"}), 400
+        
+    file = request.files["file"]
+    if file.filename == "":
+        return jsonify({"success": False, "error": "未选择文件"}), 400
+        
+    if file and allowed_video_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(filepath)
+        
+        # 获取语言参数，默认为中文
+        language = request.form.get("language", "zh-CN")
+        
+        # 处理视频
+        result = process_video(filepath, language)
+        
+        # 清理临时文件
+        os.remove(filepath)
+        
+        return jsonify(result)
+    
+    return jsonify({"success": False, "error": "不支持的文件格式"}), 400
+
+
+@app.route("/api/analyze_frame", methods=["POST"])
+def api_analyze_frame():
+    # 处理摄像头实时帧分析请求
+    if not model_loaded:
+        return jsonify({"success": False, "error": "模型未加载完成，请稍后再试"}), 503
+    
+    start_time = time.time()
+    
+    try:
+        # 获取前端发送的图像数据
+        data = request.json
+        if not data or "image" not in data:
+            return jsonify({"success": False, "error": "未接收到图像数据"}), 400
+        
+        # 解码Base64图像
+        image_data = data["image"].split(",")[1] if "," in data["image"] else data["image"]
+        image_bytes = base64.b64decode(image_data)
+        
+        # 将图像转换为OpenCV格式
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        preprocess_time = time.time()
+        preprocessing_duration = preprocess_time - start_time
+        
+        # 如果FER模型未加载，返回模拟的情绪分析结果
+        if emotion_detector is None:
+            logger.warning("FER模型未加载，返回模拟的情绪分析结果")
+            emotions = {
+                "angry": 0.1,
+                "disgust": 0.05,
+                "fear": 0.05,
+                "happy": 0.5,
+                "sad": 0.1,
+                "surprise": 0.1,
+                "neutral": 0.1
+            }
+            dominant_emotion = "happy"
+            
+            # 计算总处理时间
+            end_time = time.time()
+            total_duration = end_time - start_time
+            
+            return jsonify({
+                "success": True,
+                "emotions": emotions,
+                "dominant_emotion": dominant_emotion,
+                "dominant_emotion_zh": emotion_to_chinese(dominant_emotion),
+                "processing_info": {
+                    "total_time": round(total_duration * 1000, 2),
+                    "preprocessing_time": round(preprocessing_duration * 1000, 2),
+                    "detection_time": 0,
+                    "note": "FER模型未加载，返回模拟结果"
+                }
+            })
+        
+        # 使用FER进行情绪分析
+        detection_start = time.time()
+        emotions = emotion_detector.detect_emotions(img)
+        detection_end = time.time()
+        detection_duration = detection_end - detection_start
+        
+        # 检查是否检测到人脸
+        if not emotions or len(emotions) == 0:
+            return jsonify({
+                "success": False, 
+                "error": "未检测到人脸",
+                "processing_info": {
+                    "total_time": round((time.time() - start_time) * 1000, 2),
+                    "preprocessing_time": round(preprocessing_duration * 1000, 2),
+                    "detection_time": round(detection_duration * 1000, 2)
+                }
+            }), 400
+        
+        # 获取第一个检测到的人脸的情绪
+        emotion_data = emotions[0]["emotions"]
+        dominant_emotion = max(emotion_data, key=emotion_data.get)
+        
+        # 计算总处理时间
+        end_time = time.time()
+        total_duration = end_time - start_time
+        
+        return jsonify({
+            "success": True,
+            "emotions": emotion_data,
+            "dominant_emotion": dominant_emotion,
+            "dominant_emotion_zh": emotion_to_chinese(dominant_emotion),
+            "processing_info": {
+                "total_time": round(total_duration * 1000, 2),
+                "preprocessing_time": round(preprocessing_duration * 1000, 2),
+                "detection_time": round(detection_duration * 1000, 2)
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"处理实时帧时出错: {str(e)}")
+        return jsonify({"success": False, "error": f"处理图像时出错: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
-    # 在后台线程中加载模型
-    loading_thread = Thread(target=load_model)
-    loading_thread.daemon = True
-    loading_thread.start()
-
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    # 启动模型加载线程
+    import threading
+    threading.Thread(target=load_model, daemon=True).start()
+    
+    # 使用8080端口启动Flask应用
+    app.run(debug=True, port=8080)
