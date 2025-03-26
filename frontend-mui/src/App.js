@@ -82,7 +82,7 @@ const theme = createTheme({
 });
 
 // API基础URL
-const API_BASE_URL = "http://localhost:8080/api";
+const API_BASE_URL = "http://127.0.0.1:5001/api";
 
 function App() {
 	// 状态变量
@@ -94,29 +94,60 @@ function App() {
 	useEffect(() => {
 		const checkModelStatus = async () => {
 			try {
+				console.log("正在检查模型加载状态...");
 				const response = await fetch(`${API_BASE_URL}/status`);
 				const data = await response.json();
+				console.log("模型状态响应:", data);
 
 				if (data.loaded) {
+					console.log("模型已加载完成");
 					setModelLoaded(true);
 					setModelLoading(false);
 				} else if (data.loading) {
+					console.log("模型正在加载中...");
 					setModelLoaded(false);
 					setModelLoading(true);
 					setTimeout(checkModelStatus, 2000);
 				} else {
+					console.log("模型未加载，将在2秒后重试");
 					setModelLoaded(false);
 					setModelLoading(false);
 					setTimeout(checkModelStatus, 2000);
 				}
 			} catch (error) {
 				console.error("获取模型状态出错:", error);
-				setError("无法连接到服务器，请检查后端服务是否运行");
+				// 尝试使用更可靠的方式检查服务器连接
+				try {
+					// 直接检查服务器是否可访问
+					await fetch(`${API_BASE_URL}/ping`, { method: 'GET', timeout: 2000 })
+						.then(response => {
+							if (response.ok) {
+								console.log("服务器可访问，但模型状态请求失败");
+								setError("服务器可访问，但模型状态请求失败，将重试");
+							}
+						})
+						.catch(() => {
+							console.error("服务器完全无法访问");
+							setError("无法连接到服务器，请检查后端服务是否运行");
+						});
+				} catch (e) {
+					console.error("服务器连接检查失败:", e);
+				}
+				
+				// 无论如何，5秒后重试
 				setTimeout(checkModelStatus, 5000);
 			}
 		};
 
 		checkModelStatus();
+		
+		// 设置定期检查，确保状态保持最新
+		const intervalId = setInterval(checkModelStatus, 30000); // 每30秒检查一次
+		
+		// 清理函数
+		return () => {
+			clearInterval(intervalId);
+		};
 	}, []);
 
 	// 清除错误
@@ -128,39 +159,13 @@ function App() {
 		<ThemeProvider theme={theme}>
 			<CssBaseline />
 			{/* 背景图层 */}
-			<div className="app-background"></div>
-			
+			<div className='app-background'></div>
+
 			{/* 内容容器 */}
-			<div className="content-container">
+			<div className='content-container'>
 				<Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
 					{/* 右上角状态指示器 */}
-					<Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 1000 }}>
-						{!modelLoaded && !modelLoading ? (
-							<Chip
-								icon={<CircularProgress size={16} color="inherit" />}
-								label="模型加载中..."
-								color="warning"
-								variant="outlined"
-								sx={{ fontWeight: 'medium' }}
-							/>
-						) : modelLoading ? (
-							<Chip
-								icon={<CircularProgress size={16} color="inherit" />}
-								label="模型正在加载..."
-								color="warning"
-								variant="outlined"
-								sx={{ fontWeight: 'medium' }}
-							/>
-						) : (
-							<Chip
-								icon={<CheckCircleIcon />}
-								label="模型已加载"
-								color="success"
-								variant="outlined"
-								sx={{ fontWeight: 'medium' }}
-							/>
-						)}
-					</Box>
+					<Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 1000 }}>{!modelLoaded && !modelLoading ? <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型加载中...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} /> : modelLoading ? <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型正在加载...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} /> : <Chip icon={<CheckCircleIcon />} label='模型已加载' color='success' variant='outlined' sx={{ fontWeight: "medium" }} />}</Box>
 
 					<Box sx={{ mb: 4, textAlign: "center" }}>
 						<Typography variant='h1' component='h1' gutterBottom>
