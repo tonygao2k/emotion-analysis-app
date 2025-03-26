@@ -8,6 +8,7 @@ torch>=2.2.0
 transformers==4.30.2
 openai-whisper>=20231117
 tensorflow>=2.16.0
+fer>=22.5.0
 
 # 数据处理
 numpy>=1.24.3
@@ -21,6 +22,5 @@ python-magic>=0.4.27
 
 # 视频处理
 opencv-python>=4.8.0
-fer>=22.4.0
 moviepy>=1.0.3
 Pillow>=10.0.0

@@ -197,25 +197,19 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
       canvasRef.current.height
     );
     
-    // 如果有当前情绪，绘制人脸框和情绪标签
-    if (currentEmotion && currentEmotion.face_box) {
-      const { face_box, dominant, confidence } = currentEmotion;
-      const [x, y, width, height] = face_box;
-      
-      // 绘制人脸框
-      ctx.strokeStyle = '#03dac6'; // 使用应用的主题色
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, width, height);
+    // 如果有当前情绪，绘制情绪标签
+    if (currentEmotion && currentEmotion.dominant) {
+      const { dominant, confidence } = currentEmotion;
       
       // 绘制情绪标签
       ctx.fillStyle = 'rgba(3, 218, 198, 0.7)';
-      ctx.fillRect(x, y - 30, width, 30);
+      ctx.fillRect(10, 10, 200, 30);
       ctx.fillStyle = '#000';
       ctx.font = '16px Arial';
       ctx.fillText(
         `${dominant} (${Math.round(confidence * 100)}%)`, 
-        x + 5, 
-        y - 10
+        15, 
+        30
       );
     }
     
@@ -248,7 +242,7 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          frame: dataUrl
+          image: dataUrl
         }),
       });
       
@@ -259,12 +253,21 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
       const result = await response.json();
       
       if (result.success) {
-        setCurrentEmotion(result.emotion);
+        // 将后端返回的数据格式转换为前端期望的格式
+        const emotionData = {
+          dominant: result.dominant_emotion,
+          dominant_zh: result.dominant_emotion_zh,
+          all_emotions: result.emotions,
+          confidence: result.emotions[result.dominant_emotion] || 0,
+          processing_info: result.processing_info
+        };
+        
+        setCurrentEmotion(emotionData);
         // 添加到历史记录
-        setEmotionHistory(prev => [...prev, result.emotion]);
+        setEmotionHistory(prev => [...prev, emotionData]);
         
         // 获取处理信息
-        const processTime = result.processing_info?.total_time_ms || (endTime - startTime);
+        const processTime = result.processing_info?.total_time || (endTime - startTime);
         
         // 更新处理统计信息
         setProcessingStats(prev => ({

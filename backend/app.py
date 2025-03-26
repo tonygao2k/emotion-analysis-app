@@ -88,13 +88,20 @@ def load_model():
         logger.info("加载Whisper语音识别模型...")
         whisper_model = whisper.load_model("small")
         
-        # 暂时禁用FER模型加载
-        logger.info("FER模型加载已禁用")
-        emotion_detector = None
+        # 加载FER模型
+        try:
+            logger.info("开始加载FER面部表情识别模型...")
+            from fer import FER
+            emotion_detector = FER(mtcnn=True)
+            logger.info("FER面部表情识别模型加载完成")
+        except Exception as fer_error:
+            logger.error(f"加载FER模型时出错: {str(fer_error)}")
+            logger.warning("将使用模拟的面部表情数据")
+            emotion_detector = None
         
         model_loaded = True
         model_loading = False  # 标记模型加载完成
-        logger.info("文本和语音模型加载完成")
+        logger.info("模型加载完成")
     except Exception as e:
         logger.error(f"加载模型时出错: {str(e)}")
         model_loaded = False
