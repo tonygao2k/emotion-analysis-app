@@ -59,6 +59,7 @@ build/
 *.onnx
 *.pb
 *.tflite
+*.pid
 
 # 临时文件
 tmp/
