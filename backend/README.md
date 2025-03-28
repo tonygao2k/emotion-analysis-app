@@ -1,14 +1,16 @@
 # 情感分析应用 - 后端服务
 
-这是情感分析应用的后端服务部分，基于Flask框架开发，提供语音识别和情感分析功能的API接口。
+这是情感分析应用的后端服务部分，基于Flask框架开发，提供语音识别和情感分析功能的API接口。本项目已优化以便于部署到Google App Engine。
 
 ## 技术栈
 
 - **Flask**: Web框架
 - **Flask-CORS**: 处理跨域请求
 - **Transformers**: Hugging Face的自然语言处理库
-- **PyTorch**: 深度学习框架
-- **SpeechRecognition**: 语音识别库
+- **TensorFlow**: 深度学习框架
+- **Whisper**: OpenAI的语音识别模型
+- **FER**: 面部表情识别库
+- **OpenCV**: 计算机视觉库，用于视频处理
 
 ## 模型
 
@@ -22,6 +24,7 @@
 - **方法**: GET
 - **描述**: 检查模型是否已加载完成
 - **返回示例**:
+
   ```json
   {
     "model_loaded": true
@@ -34,13 +37,16 @@
 - **方法**: POST
 - **描述**: 分析文本的情感
 - **请求体**:
+
   ```json
   {
     "text": "这是一段要分析的文本",
     "language": "zh-CN"  // 可选，默认为中文
   }
   ```
+
 - **返回示例**:
+
   ```json
   {
     "success": true,

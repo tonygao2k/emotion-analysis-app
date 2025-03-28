@@ -1,0 +1,52 @@
+# 忽略Git相关文件
+.git
+.gitignore
+
+# 忽略Python缓存文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 忽略虚拟环境
+venv/
+ENV/
+env/
+
+# 忽略日志文件
+*.log
+
+# 忽略临时文件
+tmp/
+temp/
+
+# 忽略测试文件
+test/
+tests/
+
+# 忽略本地配置文件
+.env
+.env.local
+.env.development.local
+
+# 忽略编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo

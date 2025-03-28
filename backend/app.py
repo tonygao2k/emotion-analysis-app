@@ -38,16 +38,24 @@ file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
 app = Flask(__name__)
-CORS(app)  # 启用CORS支持跨域请求
+# 改进的CORS配置，只允许特定域名访问
+CORS(app, origins=[
+    "https://emotion-analysis-app.web.app",  # Firebase域名
+    "https://emotion-analysis-app.firebaseapp.com",  # Firebase域名
+    "http://localhost:3000",  # 本地开发环境
+    "http://localhost:3001",  # 备用本地端口
+    "http://127.0.0.1:3000",  # 使用IP地址的本地开发环境
+])
 
-# 配置
-MODEL_NAME = "nlptown/bert-base-multilingual-uncased-sentiment"
-UPLOAD_FOLDER = tempfile.gettempdir()
+# 从环境变量获取配置
+MODEL_NAME = os.environ.get("MODEL_NAME", "nlptown/bert-base-multilingual-uncased-sentiment")
+UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", tempfile.gettempdir())
 ALLOWED_EXTENSIONS = {"wav", "mp3", "flac"}
 ALLOWED_VIDEO_EXTENSIONS = {"mp4", "avi", "mov", "mkv"}  # 允许的视频文件格式
+MODEL_RELOAD_INTERVAL = int(os.environ.get("MODEL_RELOAD_INTERVAL", 24 * 60 * 60))  # 默认24小时
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 限制上传文件大小为32MB
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_CONTENT_LENGTH", 32 * 1024 * 1024))  # 限制上传文件大小为32MB
 
 
 # 全局变量
@@ -57,7 +65,14 @@ whisper_model = None
 emotion_detector = None  # 面部表情识别模型
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 model_loaded = False
-model_loading = False  # 新增变量，用于跟踪模型是否正在加载
+model_loading = False  # 用于跟踪模型是否正在加载
+last_model_load_time = 0  # 最后一次模型加载的时间
+
+# 错误处理函数
+def error_response(message, status_code=400):
+    """统一的错误响应函数"""
+    logger.error(message)
+    return jsonify({"success": False, "error": message}), status_code
 
 
 def allowed_file(filename):
@@ -75,8 +90,15 @@ def allowed_video_file(filename):
 
 def load_model():
     """加载模型"""
-    global model, tokenizer, whisper_model, emotion_detector, model_loaded, model_loading
+    global model, tokenizer, whisper_model, emotion_detector, model_loaded, model_loading, last_model_load_time
 
+    current_time = time.time()
+    
+    # 如果模型已加载但超过指定时间，考虑重新加载
+    if model_loaded and (current_time - last_model_load_time > MODEL_RELOAD_INTERVAL):
+        logger.info(f"模型已加载超过{MODEL_RELOAD_INTERVAL/3600}小时，准备重新加载...")
+        model_loaded = False
+    
     # 如果模型已经加载或正在加载，则直接返回
     if model_loaded or model_loading:
         return
@@ -109,12 +131,14 @@ def load_model():
 
         model_loaded = True
         model_loading = False  # 标记模型加载完成
-        logger.info("模型加载完成")
+        last_model_load_time = time.time()  # 记录模型加载时间
+        logger.info(f"模型加载完成，时间戳: {last_model_load_time}")
     except Exception as e:
         logger.error(f"加载模型时出错: {str(e)}")
         model_loaded = False
         model_loading = False  # 标记模型加载失败
-        raise
+        # 不再抛出异常，而是记录错误并继续
+        logger.error("模型加载失败，将在下次请求时重试")
 
 
 def recognize_speech(audio_file, language="zh-CN"):
@@ -263,29 +287,45 @@ def process_video(video_file, language="zh-CN"):
         # 面部表情分析
         logger.info("开始分析视频中的面部表情...")
         video = cv2.VideoCapture(video_file)
-
-        emotions = []
-        frame_count = 0
-        sample_rate = 5  # 每秒采样帧数
+        
+        # 获取视频信息
+        total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = video.get(cv2.CAP_PROP_FPS)
-        sample_interval = int(fps / sample_rate) if fps > 0 else 1
-
-        while video.isOpened():
+        duration = total_frames / fps if fps > 0 else 0
+        logger.info(f"视频信息: 总帧数={total_frames}, FPS={fps}, 时长={duration:.2f}秒")
+        
+        # 优化采样策略
+        emotions = []
+        max_samples = 20  # 最大采样数
+        
+        # 计算采样间隔
+        if total_frames <= max_samples:
+            # 视频很短，分析每一帧
+            sample_indices = range(total_frames)
+        else:
+            # 均匀采样
+            sample_indices = [int(i * total_frames / max_samples) for i in range(max_samples)]
+        
+        logger.info(f"将采样 {len(sample_indices)} 帧进行分析")
+        
+        for frame_idx in sample_indices:
+            # 跳转到指定帧
+            video.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
             ret, frame = video.read()
             if not ret:
-                break
-
-            # 控制采样率，不必分析每一帧
-            frame_count += 1
-            if frame_count % sample_interval != 0:
+                logger.warning(f"无法读取帧 {frame_idx}")
                 continue
-
+                
             # 分析当前帧的表情
             result = emotion_detector.detect_emotions(frame)
             if result and len(result) > 0:
                 emotions.append(result[0]["emotions"])
-
+                logger.debug(f"帧 {frame_idx} 检测到表情: {result[0]['emotions']}")
+            else:
+                logger.debug(f"帧 {frame_idx} 未检测到面部")
+        
         video.release()
+        logger.info(f"共检测到 {len(emotions)} 个帧的表情数据")
 
         # 清理临时文件
         os.remove(audio_path)
@@ -407,7 +447,8 @@ def status():
     """获取模型加载状态和系统信息"""
     return jsonify(
         {
-            "loaded": model_loaded,
+            "model_loaded": model_loaded,  # 与前端保持一致
+            "loaded": model_loaded,  # 保留原有字段以兼容
             "loading": model_loading,
             "device": device,
             "models": {
@@ -500,16 +541,21 @@ def api_record():
         # 解码Base64数据
         audio_bytes = base64.b64decode(audio_data)
 
-        # 创建临时文件
-        temp_file = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
-        temp_file.write(audio_bytes)
-        temp_file.close()
+        # 使用上下文管理器处理临时文件
+        temp_path = None
+        with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as temp_file:
+            temp_file.write(audio_bytes)
+            temp_path = temp_file.name
+            logger.info(f"创建临时文件: {temp_path}")
 
-        # 识别语音
-        speech_result = recognize_speech(temp_file.name, language)
-
-        # 删除临时文件
-        os.remove(temp_file.name)
+        try:
+            # 识别语音
+            speech_result = recognize_speech(temp_path, language)
+        finally:
+            # 确保删除临时文件
+            if temp_path and os.path.exists(temp_path):
+                os.remove(temp_path)
+                logger.info(f"删除临时文件: {temp_path}")
 
         if not speech_result["success"]:
             return jsonify(speech_result)
@@ -547,15 +593,19 @@ def api_upload_video():
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
         file.save(filepath)
+        logger.info(f"保存上传的视频文件: {filepath}")
 
         # 获取语言参数，默认为中文
         language = request.form.get("language", "zh-CN")
 
-        # 处理视频
-        result = process_video(filepath, language)
-
-        # 清理临时文件
-        os.remove(filepath)
+        try:
+            # 处理视频
+            result = process_video(filepath, language)
+        finally:
+            # 清理临时文件
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                logger.info(f"删除临时视频文件: {filepath}")
 
         return jsonify(result)
 
@@ -687,11 +737,46 @@ def api_analyze_frame():
         return jsonify({"success": False, "error": f"处理图像时出错: {str(e)}"}), 500
 
 
+# 请求日志中间件
+@app.before_request
+def log_request_info():
+    """记录每个请求的信息"""
+    logger.info(f"请求: {request.method} {request.path} - 参数: {dict(request.args)} - IP: {request.remote_addr}")
+
+
+# 健康检查端点
+@app.route("/health", methods=["GET"])
+def health_check():
+    """健康检查端点，用于GAE监控"""
+    return jsonify({
+        "status": "ok", 
+        "model_loaded": model_loaded,
+        "timestamp": time.time(),
+        "version": "1.0.0"
+    })
+
+
+# 用于前端连接测试的端点
+@app.route("/api/ping", methods=["GET"])
+def ping():
+    """简单的连接测试端点"""
+    return jsonify({
+        "status": "ok",
+        "message": "pong",
+        "timestamp": time.time()
+    })
+
+
 if __name__ == "__main__":
-    # 启动模型加载线程
-    import threading
-
-    threading.Thread(target=load_model, daemon=True).start()
-
-    # 使用5001端口启动Flask应用
-    app.run(debug=True, port=5001)
+    # 直接在主线程中加载模型，确保启动前完成加载
+    logger.info("在主线程中加载模型...")
+    load_model()
+    logger.info(f"模型加载状态: {model_loaded}")
+    
+    # 从环境变量获取端口或使用默认值
+    port = int(os.environ.get("PORT", 5001))
+    debug = os.environ.get("DEBUG", "False").lower() == "true"
+    
+    # 使用指定端口启动Flask应用
+    logger.info(f"启动服务器，端口: {port}, 调试模式: {debug}")
+    app.run(host="0.0.0.0", debug=debug, port=port)
