@@ -8,6 +8,7 @@ import Paper from "@mui/material/Paper";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import Chip from "@mui/material/Chip";
+import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import "./App.css";
@@ -81,8 +82,8 @@ const theme = createTheme({
 	},
 });
 
-// API基础URL
-const API_BASE_URL = "http://127.0.0.1:5001/api";
+// 从环境变量获取API基础URL
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:5001/api";
 
 function App() {
 	// 状态变量
@@ -92,6 +93,9 @@ function App() {
 
 	// 检查模型加载状态
 	useEffect(() => {
+		// 模型加载超时处理
+		let loadingTimeoutId = null;
+		
 		const checkModelStatus = async () => {
 			try {
 				console.log("正在检查模型加载状态...");
@@ -99,14 +103,28 @@ function App() {
 				const data = await response.json();
 				console.log("模型状态响应:", data);
 
-				if (data.loaded) {
+				// 清除之前的超时定时器
+				if (loadingTimeoutId) {
+					clearTimeout(loadingTimeoutId);
+					loadingTimeoutId = null;
+				}
+
+				if (data.model_loaded || data.loaded) {
 					console.log("模型已加载完成");
 					setModelLoaded(true);
 					setModelLoading(false);
+					setError(null); // 清除之前的错误
 				} else if (data.loading) {
 					console.log("模型正在加载中...");
 					setModelLoaded(false);
 					setModelLoading(true);
+					
+					// 设置加载超时定时器，60秒后显示超时提示
+					loadingTimeoutId = setTimeout(() => {
+						setError("模型加载时间过长，可能是第一次加载或服务器资源不足");
+						setModelLoading(false);
+					}, 60000);
+					
 					setTimeout(checkModelStatus, 2000);
 				} else {
 					console.log("模型未加载，将在2秒后重试");
@@ -119,7 +137,7 @@ function App() {
 				// 尝试使用更可靠的方式检查服务器连接
 				try {
 					// 直接检查服务器是否可访问
-					await fetch(`${API_BASE_URL}/ping`, { method: 'GET', timeout: 2000 })
+					await fetch(`${API_BASE_URL}/ping`, { method: "GET", timeout: 2000 })
 						.then(response => {
 							if (response.ok) {
 								console.log("服务器可访问，但模型状态请求失败");
@@ -133,22 +151,25 @@ function App() {
 				} catch (e) {
 					console.error("服务器连接检查失败:", e);
 				}
-				
+
 				// 无论如何，5秒后重试
 				setTimeout(checkModelStatus, 5000);
 			}
 		};
 
 		checkModelStatus();
-		
+
 		// 设置定期检查，确保状态保持最新
 		const intervalId = setInterval(checkModelStatus, 30000); // 每30秒检查一次
-		
+
 		// 清理函数
 		return () => {
 			clearInterval(intervalId);
+			if (loadingTimeoutId) {
+				clearTimeout(loadingTimeoutId);
+			}
 		};
-	}, []);
+	}, []); // 移除API_BASE_URL依赖项，因为它是常量
 
 	// 清除错误
 	const clearError = () => {
@@ -172,7 +193,7 @@ function App() {
 							情感分析系统
 						</Typography>
 						<Typography variant='h5' color='textSecondary' paragraph>
-							基于语音和文本的多语言情感分析
+							基于语音、视频和文本的多模态情感分析
 						</Typography>
 					</Box>
 
@@ -181,6 +202,36 @@ function App() {
 							severity='error'
 							variant='filled'
 							onClose={clearError}
+							action={
+								<Button 
+									color="inherit" 
+									size="small" 
+									onClick={() => {
+										clearError();
+										// 立即检查模型状态
+										fetch(`${API_BASE_URL}/status`)
+											.then(response => response.json())
+											.then(data => {
+												if (data.model_loaded || data.loaded) {
+													setModelLoaded(true);
+													setModelLoading(false);
+												} else if (data.loading) {
+													setModelLoaded(false);
+													setModelLoading(true);
+												}
+											})
+											.catch(() => {
+												// 如果状态检查失败，尝试ping端点
+												fetch(`${API_BASE_URL}/ping`, { method: "GET" })
+													.catch(() => {
+														setError("服务器仍然无法访问，请检查后端服务");
+													});
+											});
+									}}
+								>
+									重试
+								</Button>
+							}
 							sx={{
 								mb: 2,
 								bgcolor: "#31191c", // 深红色背景
