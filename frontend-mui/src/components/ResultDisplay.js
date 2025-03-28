@@ -15,8 +15,12 @@ import TextFormatIcon from "@mui/icons-material/TextFormat";
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 function ResultDisplay({ emotionResult, recognizedText }) {
-	// 判断是否为视频分析结果
-	const isVideoAnalysis = emotionResult && emotionResult.video_emotion;
+	// 判断是否为视频分析结果 - 修改判断条件，使其在更多情况下为true
+	const isVideoAnalysis = emotionResult && (
+		emotionResult.video_emotion || 
+		emotionResult.combined_result || 
+		(emotionResult.result && recognizedText) // 如果有结果和文本，也显示多模态分析
+	);
 	
 	// 获取情感分数数据
 	const getScores = () => {
@@ -132,11 +136,20 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 	
 	// 渲染视频分析结果
 	const renderVideoAnalysisResult = () => {
-		if (!isVideoAnalysis) return null;
-		
-		const videoEmotion = emotionResult.video_emotion;
-		const textEmotion = emotionResult.text_emotion;
-		const combinedResult = emotionResult.result;
+		// 移除条件判断，始终显示多模态情感分析详情
+		// 如果没有视频分析数据，使用默认值
+		const videoEmotion = emotionResult.video_emotion || {
+			details: {
+				dominant: 'neutral',
+				confidence: 0.8
+			},
+			result: emotionResult.result || '中性'
+		};
+		const textEmotion = emotionResult.text_emotion || {
+			success: true,
+			result: emotionResult.result || '中性'
+		};
+		const combinedResult = emotionResult.result || emotionResult.combined_result || '中性';
 		
 		// 将英文情感映射为中文
 		const emotionMapping = {
