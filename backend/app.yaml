@@ -14,5 +14,5 @@ handlers:
   secure: always
 
 env_variables:
-  FLASK_ENV: 'production'
+  FLASK_ENV: 'development'
   MODEL_NAME: 'nlptown/bert-base-multilingual-uncased-sentiment'

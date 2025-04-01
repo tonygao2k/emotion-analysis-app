@@ -72,7 +72,16 @@ function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedTex
 
 			if (data.success) {
 				setRecognizedText(textInput);
-				onAnalysisResult(data);
+				
+				// 处理新的数据结构
+				const formattedResult = {
+					result: data.result.sentiment,
+					emotion_type: data.result.emotion_type,
+					scores: data.result.scores,
+					text: textInput
+				};
+				
+				onAnalysisResult(formattedResult);
 			} else {
 				setError("分析出错: " + (data.error || "未知错误"));
 			}

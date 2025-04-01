@@ -312,8 +312,15 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
 			}
 			
 			// 准备请求数据
+			// 从dataUrl中提取base64部分，移除前缀
+			let base64Image = dataUrl;
+			// 保留完整的dataUrl，包括前缀，后端已修复可以处理带前缀的base64
+			// if (base64Image.startsWith('data:image')) {
+			//   base64Image = base64Image.split(',')[1];
+			// }
+
 			const requestData = {
-				image: dataUrl
+				image: base64Image
 			};
 			
 			// 输出请求信息（不输出完整图像数据）

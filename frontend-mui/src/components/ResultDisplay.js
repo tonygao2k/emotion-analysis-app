@@ -31,6 +31,18 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 			return emotionResult.text_emotion.scores;
 		}
 		
+		// 如果存在scores对象但是它是对象而不是数组
+		if (emotionResult.scores && typeof emotionResult.scores === 'object' && !Array.isArray(emotionResult.scores)) {
+			// 将对象转换为数组
+			return [
+				emotionResult.scores.very_negative || 0,
+				emotionResult.scores.negative || 0,
+				emotionResult.scores.neutral || 0,
+				emotionResult.scores.positive || 0,
+				emotionResult.scores.very_positive || 0
+			];
+		}
+		
 		// 否则使用普通情感分析的分数
 		return emotionResult.scores || [0, 0, 0, 0, 0];
 	};
@@ -111,6 +123,8 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				return <SentimentDissatisfiedIcon fontSize='large' sx={{ color: "#ffb74d" }} />;
 			case "非常消极":
 				return <SentimentVeryDissatisfiedIcon fontSize='large' sx={{ color: "#cf6679" }} />;
+			case "愤怒": // 新增愤怒情绪类型
+				return <SentimentVeryDissatisfiedIcon fontSize='large' sx={{ color: "#ff1744" }} />;
 			default:
 				return <SentimentNeutralIcon fontSize='large' />;
 		}
@@ -129,6 +143,8 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 				return "#ffb74d";
 			case "非常消极":
 				return "#cf6679";
+			case "愤怒": // 新增愤怒情绪类型
+				return "#ff1744";
 			default:
 				return "#9e9e9e";
 		}
@@ -183,8 +199,11 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 								</Typography>
 							</Box>
 							<Divider sx={{ mb: 2 }} />
-							<Typography variant="body2" color="text.secondary" paragraph>
-								主要表情: <Chip 
+							<Box sx={{ mb: 2 }}>
+								<Typography variant="body2" color="text.secondary" component="span">
+									主要表情: 
+								</Typography>
+								<Chip 
 									label={dominantEmotionChinese} 
 									size="small" 
 									sx={{ 
@@ -194,12 +213,15 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 										ml: 1
 									}} 
 								/>
-							</Typography>
+							</Box>
 							<Typography variant="body2" color="text.secondary" paragraph>
 								表情置信度: {confidence}%
 							</Typography>
-							<Typography variant="body2" color="text.secondary" paragraph>
-								情感结果: <Chip 
+							<Box sx={{ mb: 2 }}>
+								<Typography variant="body2" color="text.secondary" component="span">
+									情感结果: 
+								</Typography>
+								<Chip 
 									label={videoEmotion.result} 
 									size="small" 
 									sx={{ 
@@ -209,7 +231,7 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 										ml: 1
 									}} 
 								/>
-							</Typography>
+							</Box>
 						</Paper>
 					</Grid>
 					
@@ -226,8 +248,11 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 								识别文本: "{recognizedText}"
 							</Typography>
 							{textEmotion && textEmotion.success && (
-								<Typography variant="body2" color="text.secondary" paragraph>
-									情感结果: <Chip 
+								<Box sx={{ mb: 2 }}>
+									<Typography variant="body2" color="text.secondary" component="span">
+										情感结果: 
+									</Typography>
+									<Chip 
 										label={textEmotion.result} 
 										size="small" 
 										sx={{ 
@@ -237,7 +262,7 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 											ml: 1
 										}} 
 									/>
-								</Typography>
+								</Box>
 							)}
 						</Paper>
 					</Grid>
@@ -282,6 +307,25 @@ function ResultDisplay({ emotionResult, recognizedText }) {
 								{emotionResult.result}
 							</Typography>
 						</Box>
+						
+						{/* 显示情绪类型 */}
+						{emotionResult.emotion_type && (
+							<Box sx={{ mb: 2 }}>
+								<Chip 
+									label={`情绪类型: ${emotionResult.emotion_type}`} 
+									size="medium" 
+									color="primary"
+									variant="outlined"
+									sx={{ 
+										bgcolor: `${getEmotionColor(emotionResult.result)}20`, 
+										color: getEmotionColor(emotionResult.result),
+										fontWeight: 'bold',
+										my: 1
+									}} 
+								/>
+							</Box>
+						)}
+						
 						{!isVideoAnalysis && (
 							<Typography variant='body1' color='text.secondary' sx={{ opacity: 0.8 }}>
 								文本: "{recognizedText}"

@@ -53,7 +53,7 @@ cd ..
 
 echo ""
 echo "===== 情感分析应用已启动 ====="
-echo "后端服务运行在: http://localhost:5001"
+echo "后端服务运行在: http://localhost:8080"
 echo "前端应用运行在: http://localhost:3000"
 echo ""
 echo "请在浏览器中访问 http://localhost:3000 使用应用"

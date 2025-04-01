@@ -59,20 +59,24 @@ function EmotionTabs({ modelLoaded, apiBaseUrl, setError }) {
 
 	const handleTabChange = (event, newValue) => {
 		setTabValue(newValue);
-		// 切换标签时清除结果显示，除非是历史记录标签
-		if (newValue !== tabValue && newValue !== 4) {
-			setShowResult(false);
-		}
+		// 切换标签页时清空识别结果和分析结果
+		setRecognizedText("");
+		setShowResult(false);
+		setEmotionResult(null);
 	};
 
 	const handleRecognitionResult = data => {
 		if (data.success) {
 			setRecognizedText(data.text);
 
-			if (data.emotion && data.emotion.success) {
-				// 添加时间戳
+			// 检查是否有情感分析结果
+			if (data.emotion_analysis) {
+				// 处理情感分析结果
 				const resultWithTimestamp = {
-					...data.emotion,
+					result: data.emotion_analysis.sentiment, // 使用sentiment作为result
+					emotion_type: data.emotion_analysis.emotion_type || "未知", // 新增情绪类型字段
+					scores: data.emotion_analysis.scores,
+					text: data.text,
 					timestamp: new Date().toISOString()
 				};
 				
@@ -83,9 +87,12 @@ function EmotionTabs({ modelLoaded, apiBaseUrl, setError }) {
 				const updatedHistory = [resultWithTimestamp, ...historyData].slice(0, 20); // 限制最多20条记录
 				setHistoryData(updatedHistory);
 				saveHistoryToStorage(updatedHistory);
+			} else if (data.emotion_error) {
+				// 如果有情感分析错误，显示错误信息
+				setError("情感分析出错: " + data.emotion_error);
 			}
 		} else {
-			setError("识别失败: " + data.error);
+			setError("语音识别失败: " + data.error);
 		}
 	};
 

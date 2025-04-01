@@ -15,7 +15,7 @@ try:
         try:
             data = response.json()
             print(f"JSON数据: {data}")
-            print(f"模型加载状态: {data.get('loaded', False)}")
+            print(f"模型加载状态: {data.get('status', {}).get('loaded', False)}")
         except Exception as e:
             print(f"解析JSON时出错: {e}")
 except Exception as e:

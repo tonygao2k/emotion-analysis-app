@@ -83,7 +83,7 @@ const theme = createTheme({
 });
 
 // 从环境变量获取API基础URL
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:5001/api";
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8080/api";
 
 function App() {
 	// 状态变量
@@ -109,12 +109,13 @@ function App() {
 					loadingTimeoutId = null;
 				}
 
-				if (data.model_loaded || data.loaded) {
+				// 检查嵌套的status对象
+				if (data.status && data.status.loaded) {
 					console.log("模型已加载完成");
 					setModelLoaded(true);
 					setModelLoading(false);
 					setError(null); // 清除之前的错误
-				} else if (data.loading) {
+				} else if (data.status && data.status.loading) {
 					console.log("模型正在加载中...");
 					setModelLoaded(false);
 					setModelLoading(true);
