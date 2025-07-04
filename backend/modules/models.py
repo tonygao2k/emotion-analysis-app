@@ -32,21 +32,9 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "nlptown/bert-base-multilingual-uncase
 MODEL_RELOAD_INTERVAL = int(os.environ.get("MODEL_RELOAD_INTERVAL", 24 * 60 * 60))  # 默认24小时
 
 
-def load_model(force_success=False):
-    """加载所有模型
-    
-    Args:
-        force_success (bool, optional): 如果为True，即使模型加载失败也会将模型状态设置为已加载。默认为False。
-    """
+def load_model():
+    """加载所有模型"""
     global model, tokenizer, whisper_model, emotion_detector, model_loaded, model_loading, last_model_load_time
-
-    # 如果强制成功，直接设置模型为已加载状态
-    if force_success:
-        logger.warning("强制设置模型为已加载状态")
-        model_loaded = True
-        model_loading = False
-        last_model_load_time = time.time()
-        return
 
     current_time = time.time()
 
@@ -72,8 +60,7 @@ def load_model(force_success=False):
             logger.info("文本情感分析模型加载成功")
         except Exception as e:
             logger.error(f"加载文本情感分析模型时出错: {str(e)}")
-            if not force_success:
-                raise
+            raise
 
         # 加载语音识别模型
         try:
@@ -82,8 +69,7 @@ def load_model(force_success=False):
             logger.info("Whisper语音识别模型加载成功")
         except Exception as e:
             logger.error(f"加载Whisper语音识别模型时出错: {str(e)}")
-            if not force_success:
-                raise
+            raise
 
         # 加载面部表情识别模型
         try:
@@ -92,8 +78,7 @@ def load_model(force_success=False):
             logger.info("面部表情识别模型加载成功")
         except Exception as e:
             logger.error(f"加载面部表情识别模型时出错: {str(e)}")
-            if not force_success:
-                raise
+            raise
 
         # 更新模型状态
         model_loaded = True
@@ -101,13 +86,7 @@ def load_model(force_success=False):
         logger.info(f"所有模型加载完成，耗时: {last_model_load_time - current_time:.2f}秒")
     except Exception as e:
         logger.error(f"加载模型时出错: {str(e)}")
-        model_loading = False
-        if force_success:
-            logger.warning("虽然模型加载出错，但由于force_success=True，仍将模型状态设置为已加载")
-            model_loaded = True
-            last_model_load_time = time.time()
-        else:
-            raise
+        model_loaded = False
     finally:
         model_loading = False
 

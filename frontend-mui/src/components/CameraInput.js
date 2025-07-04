@@ -6,16 +6,25 @@ import SentimentSatisfiedAltIcon from "@mui/icons-material/SentimentSatisfiedAlt
 import SentimentVeryDissatisfiedIcon from "@mui/icons-material/SentimentVeryDissatisfied";
 import SentimentNeutralIcon from "@mui/icons-material/SentimentNeutral";
 
+// 定义模型加载状态常量 (与 App.js 保持一致)
+const MODEL_STATUS = {
+	IDLE: "idle",
+	LOADING: "loading",
+	RETRYING: "retrying",
+	LOADED: "loaded",
+	FAILED: "failed",
+};
+
 /**
  * 摄像头实时情感分析组件
  *
  * @param {string} apiBaseUrl - API基础URL
  * @param {function} setResult - 设置分析结果的函数
- * @param {boolean} modelLoaded - 模型是否已加载
+ * @param {string} modelStatus - 模型加载状态 ('idle', 'loading', 'retrying', 'loaded', 'failed')
  * @param {function} setError - 设置错误信息的函数
  * @returns {JSX.Element} 摄像头实时情感分析组件
  */
-const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
+const CameraInput = ({ apiBaseUrl, setResult, modelStatus, setError }) => {
 	// 状态管理
 	const [isRecording, setIsRecording] = useState(false);
 	const [cameraError, setCameraError] = useState(null);
@@ -36,18 +45,19 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
 	const timerRef = useRef(null);
 	const animationFrameRef = useRef(null);
 
-	// 检查摄像头状态的函数已移除，直接使用modelLoaded属性判断
+	// 检查摄像头状态的函数已移除，直接使用modelStatus属性判断
 
 	// 开始摄像头
 	const startCamera = async () => {
 		try {
-			// 检查模型是否已加载
-			if (!modelLoaded) {
-				setCameraError("模型尚未加载完成，请稍后再试");
+			// 检查模型是否加载完成
+			if (modelStatus !== MODEL_STATUS.LOADED) {
+				setError("模型尚未加载完成，请稍后重试。");
+				console.warn("模型未加载，无法启动摄像头");
 				return;
 			}
 
-			// 直接使用modelLoaded属性判断，不再调用checkApiStatus
+			// 直接使用modelStatus属性判断，不再调用checkApiStatus
 
 			// 获取摄像头权限
 			const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -132,10 +142,10 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
 	// 开始分析
 	const startAnalysis = () => {
 		console.log('开始分析函数被调用');
-		if (!modelLoaded) {
-			console.error('模型未加载，无法开始分析');
-			setError("模型尚未加载完成，请稍后再试");
-			stopCamera();
+		// 检查模型是否加载完成
+		if (modelStatus !== MODEL_STATUS.LOADED) {
+			setError("模型尚未加载完成，无法开始分析。");
+			console.warn("模型未加载，无法开始分析");
 			return;
 		}
 
@@ -602,9 +612,9 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
 				</Alert>
 			)}
 
-			{!modelLoaded && (
+			{modelStatus !== MODEL_STATUS.LOADED && (
 				<Alert severity='warning' sx={{ mb: 2, fontWeight: "bold" }}>
-					模型尚未加载完成，请稍后再试。摄像头分析功能暂时不可用。
+					模型正在加载中，加载完成后即可开始分析。
 				</Alert>
 			)}
 
@@ -613,7 +623,7 @@ const CameraInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
 			</Alert>
 
 			<Box sx={{ display: "flex", justifyContent: "center", mb: 2 }}>
-				<Button variant='contained' color={isRecording ? "error" : "primary"} startIcon={isRecording ? <StopIcon /> : <VideocamIcon />} onClick={isRecording ? stopCamera : startCamera} disabled={!modelLoaded} sx={{ mr: 2 }}>
+				<Button variant='contained' color={isRecording ? "error" : "primary"} startIcon={isRecording ? <StopIcon /> : <VideocamIcon />} onClick={isRecording ? stopCamera : startCamera} disabled={modelStatus !== MODEL_STATUS.LOADED} sx={{ mr: 2 }}>
 					{isRecording ? "停止分析" : "开始摄像头分析"}
 				</Button>
 				<Button variant='contained' color='secondary' onClick={() => setShowSettings(prev => !prev)} sx={{ mr: 2 }}>

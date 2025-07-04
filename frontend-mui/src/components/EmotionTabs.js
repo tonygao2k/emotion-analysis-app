@@ -29,7 +29,7 @@ function a11yProps(index) {
 	};
 }
 
-function EmotionTabs({ modelLoaded, apiBaseUrl, setError }) {
+function EmotionTabs({ modelStatus, apiBaseUrl, setError }) {
 	const [tabValue, setTabValue] = useState(0);
 	const [recognizedText, setRecognizedText] = useState("");
 	const [emotionResult, setEmotionResult] = useState(null);
@@ -184,16 +184,20 @@ function EmotionTabs({ modelLoaded, apiBaseUrl, setError }) {
 				</Tabs>
 			</Box>
 			<TabPanel value={tabValue} index={0}>
-				<SpeechInput modelLoaded={modelLoaded} apiBaseUrl={apiBaseUrl} onRecognitionResult={handleRecognitionResult} recognizedText={recognizedText} setError={setError} />
+				{/* 传递 modelStatus */}
+				<SpeechInput modelStatus={modelStatus} apiBaseUrl={apiBaseUrl} onRecognitionResult={handleRecognitionResult} recognizedText={recognizedText} setError={setError} />
 			</TabPanel>
 			<TabPanel value={tabValue} index={1}>
-				<TextInput modelLoaded={modelLoaded} apiBaseUrl={apiBaseUrl} onAnalysisResult={updateEmotionResult} setRecognizedText={setRecognizedText} setError={setError} />
+				{/* 传递 modelStatus */}
+				<TextInput modelStatus={modelStatus} apiBaseUrl={apiBaseUrl} onAnalysisResult={updateEmotionResult} setRecognizedText={setRecognizedText} setError={setError} />
 			</TabPanel>
 			<TabPanel value={tabValue} index={2}>
-				<VideoInput modelLoaded={modelLoaded} apiBaseUrl={apiBaseUrl} setResult={handleVideoResult} setError={setError} />
+				{/* 传递 modelStatus */}
+				<VideoInput modelStatus={modelStatus} apiBaseUrl={apiBaseUrl} setResult={handleVideoResult} setError={setError} />
 			</TabPanel>
 			<TabPanel value={tabValue} index={3}>
-				<CameraInput modelLoaded={modelLoaded} apiBaseUrl={apiBaseUrl} setResult={handleVideoResult} setError={setError} />
+				{/* 传递 modelStatus */}
+				<CameraInput modelStatus={modelStatus} apiBaseUrl={apiBaseUrl} setResult={handleVideoResult} setError={setError} />
 			</TabPanel>
 			<TabPanel value={tabValue} index={4}>
 				<HistoryRecord 

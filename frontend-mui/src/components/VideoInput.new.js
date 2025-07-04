@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Box, Button, CircularProgress, Typography, Paper, Alert } from '@mui/material';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Button, CircularProgress, Typography, Paper, Alert, LinearProgress } from '@mui/material';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
@@ -8,15 +8,27 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
  * 
  * @param {string} apiBaseUrl - API基础URL
  * @param {function} setResult - 设置分析结果的函数
- * @param {boolean} modelLoaded - 模型是否已加载
+ * @param {string} modelStatus - 模型加载状态 ('idle', 'loading', 'retrying', 'loaded', 'failed')
  * @param {function} setError - 设置错误信息的函数
  * @returns {JSX.Element} 视频上传和分析组件
  */
-const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
+const VideoInput = ({ apiBaseUrl, setResult, modelStatus, setError }) => {
   // 初始化状态变量
   const [uploading, setUploading] = useState(false);
-  const [videoFile, setVideoFile] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [taskId, setTaskId] = useState(null); // 新增：存储任务ID
+  const [pollingIntervalId, setPollingIntervalId] = useState(null); // 新增：存储轮询定时器ID
+  const [analysisStatus, setAnalysisStatus] = useState("idle"); // 新增：跟踪分析状态 (idle, processing, completed, failed)
+  const [videoFile, setVideoFile] = useState(null);
+
+  // 清理函数，确保组件卸载时停止轮询
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+      }
+    };
+  }, [pollingIntervalId]);
 
   /**
    * 处理文件选择事件
@@ -47,6 +59,58 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
     }
   };
 
+  // --- 新增：轮询任务状态函数 ---
+  const pollTaskStatus = useCallback(async (currentTaskId) => {
+    if (!currentTaskId) return;
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/task_status/${currentTaskId}`);
+      const data = await response.json();
+
+      if (data.success) {
+        setAnalysisStatus(data.status); // 更新分析状态
+
+        if (data.status === "completed") {
+          setResult(data.result); // 假设结果在 result 中
+          setError(null);
+          setUploading(false);
+          setProgress(100);
+          setTaskId(null); // 清除任务ID
+          if (pollingIntervalId) clearInterval(pollingIntervalId); // 停止轮询
+          setPollingIntervalId(null);
+        } else if (data.status === "failed") {
+          setError(`视频分析失败: ${data.error}`);
+          setResult(null);
+          setUploading(false);
+          setTaskId(null);
+          if (pollingIntervalId) clearInterval(pollingIntervalId);
+          setPollingIntervalId(null);
+        } else {
+          // 状态仍然是 processing 或其他，继续轮询
+          // 可以在这里更新更详细的进度信息，如果后端提供的话
+          console.log(`任务 ${currentTaskId} 状态: ${data.status}`);
+        }
+      } else {
+        // 获取状态失败，可能是临时网络问题或任务ID无效
+        console.warn(`无法获取任务 ${currentTaskId} 的状态: ${data.error}`);
+        // 可以选择在这里实现一些重试逻辑或停止轮询
+        // setError(`无法获取分析状态，请稍后重试`);
+        // setUploading(false);
+        // setTaskId(null);
+        // if (pollingIntervalId) clearInterval(pollingIntervalId);
+        // setPollingIntervalId(null);
+      }
+    } catch (error) {
+      console.error("轮询任务状态时出错:", error);
+      setError("轮询任务状态时发生网络错误");
+      setUploading(false);
+      setTaskId(null);
+      if (pollingIntervalId) clearInterval(pollingIntervalId);
+      setPollingIntervalId(null);
+    }
+  }, [apiBaseUrl, setResult, setError, pollingIntervalId]); // 添加依赖
+  // -------------------------
+
   /**
    * 处理视频上传和分析
    */
@@ -56,7 +120,7 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
       return;
     }
 
-    if (!modelLoaded) {
+    if (modelStatus !== 'loaded') {
       setError('模型尚未加载完成，请稍后再试');
       return;
     }
@@ -87,13 +151,29 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
           
           if (xhr.status === 200) {
             const data = JSON.parse(response);
-            if (data.success) {
-              setResult(data);
-              console.log('视频分析成功:', data);
+            if (data.success && data.task_id) {
+              setTaskId(data.task_id); // 存储 Task ID
+              setAnalysisStatus("processing"); // 设置状态为处理中
+              setError(null);
+              // 清除旧的轮询（如果有）
+              if (pollingIntervalId) {
+                clearInterval(pollingIntervalId);
+              }
+              // 开始轮询新的 Task ID
+              const intervalId = setInterval(() => pollTaskStatus(data.task_id), 3000); // 每3秒轮询一次
+              setPollingIntervalId(intervalId);
+
+              // 进度条可以先显示上传完成
+              setProgress(100);
+              // 注意：setUploading 保持 true，直到轮询结束
+              // setUploading(false); // 不在这里设置 false
             } else {
-              const errorMsg = data.error || '视频分析失败';
-              console.error('视频分析失败:', errorMsg);
-              setError(errorMsg);
+              // 上传请求本身失败或未返回 task_id
+              setError(data.error || "启动视频分析失败");
+              setResult(null);
+              setUploading(false);
+              setTaskId(null);
+              setAnalysisStatus("idle");
             }
           } else {
             // 非200状态码
@@ -111,7 +191,7 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
           console.error('处理服务器响应时出错:', e);
           setError('处理服务器响应时出错，请稍后再试');
         } finally {
-          setUploading(false);
+          // setUploading(false);
         }
       };
       
@@ -192,32 +272,14 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
         )}
 
         {uploading && (
-          <Box sx={{ width: '100%', maxWidth: 500, mb: 2 }}>
-            <Typography variant="body2" color="textSecondary" align="center">
-              上传进度: {progress}%
-            </Typography>
-            <Box
-              sx={{
-                width: '100%',
-                height: 10,
-                bgcolor: '#e0e0e0',
-                borderRadius: 5,
-                mt: 1,
-                overflow: 'hidden'
-              }}
-            >
-              <Box
-                sx={{
-                  width: `${progress}%`,
-                  height: '100%',
-                  bgcolor: 'primary.main',
-                  borderRadius: 5,
-                  transition: 'width 0.3s ease'
-                }}
-              />
-            </Box>
-            <Typography variant="body2" color="textSecondary" align="center" sx={{ mt: 1 }}>
-              {progress < 100 ? '上传中...' : '分析中...'}
+          <Box sx={{ width: "100%", mt: 2 }}>
+            <LinearProgress variant='determinate' value={progress} />
+            <Typography variant='body2' color='text.secondary' align='center' sx={{ mt: 1 }}>
+              {/* 根据分析状态显示不同文本 */}
+              {analysisStatus === 'processing' && taskId ? '视频处理中...' :
+                analysisStatus === 'completed' ? '分析完成！' :
+                analysisStatus === 'failed' ? '分析失败' :
+                `${Math.round(progress)}% 上传完成...`}
             </Typography>
           </Box>
         )}
@@ -226,14 +288,15 @@ const VideoInput = ({ apiBaseUrl, setResult, modelLoaded, setError }) => {
           variant="contained"
           color="primary"
           startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <CloudUploadIcon />}
-          disabled={!videoFile || uploading || !modelLoaded}
+          disabled={!videoFile || uploading || modelStatus !== 'loaded'}
           onClick={handleUpload}
           sx={{ mt: 2 }}
         >
-          {uploading ? '处理中...' : '上传并分析'}
+          {/* 按钮文本也根据状态变化 */}
+          {taskId && analysisStatus === 'processing' ? '正在分析...' : '开始分析'}
         </Button>
         
-        {!modelLoaded && (
+        {modelStatus !== 'loaded' && (
           <Typography variant="caption" color="error" sx={{ mt: 1 }}>
             模型尚未加载完成，请稍候...
           </Typography>

@@ -11,6 +11,7 @@ import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
 import "./App.css";
 
 // 导入组件
@@ -85,96 +86,124 @@ const theme = createTheme({
 // 从环境变量获取API基础URL
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8080/api";
 
+// 定义模型加载状态
+const MODEL_STATUS = {
+	IDLE: "idle", // 初始状态或加载完成
+	LOADING: "loading", // 首次检查或已知正在加载
+	RETRYING: "retrying", // 加载中，使用退避策略重试
+	LOADED: "loaded", // 确认已加载
+	FAILED: "failed", // 加载失败或超时
+};
+
 function App() {
 	// 状态变量
-	const [modelLoaded, setModelLoaded] = useState(false);
-	const [modelLoading, setModelLoading] = useState(false);
+	const [modelStatus, setModelStatus] = useState(MODEL_STATUS.LOADING);
 	const [error, setError] = useState(null);
+	const [retryTrigger, setRetryTrigger] = useState(0);
 
-	// 检查模型加载状态
+	// 优化后的模型状态检查逻辑
 	useEffect(() => {
-		// 模型加载超时处理
-		let loadingTimeoutId = null;
-		
-		const checkModelStatus = async () => {
+		let timeoutId = null;
+		let retryCount = 0;
+		const maxRetries = 10; // 最大重试次数
+		const initialDelay = 2000; // 初始延迟 (2s)
+		const maxDelay = 30000; // 最大延迟 (30s)
+
+		const checkStatus = async () => {
 			try {
-				console.log("正在检查模型加载状态...");
+				console.log(`检查模型状态... (尝试 #${retryCount + 1})`);
 				const response = await fetch(`${API_BASE_URL}/status`);
+
+				if (!response.ok) {
+					throw new Error(`服务器状态请求失败: ${response.status} ${response.statusText}`);
+				}
+
 				const data = await response.json();
 				console.log("模型状态响应:", data);
 
-				// 清除之前的超时定时器
-				if (loadingTimeoutId) {
-					clearTimeout(loadingTimeoutId);
-					loadingTimeoutId = null;
-				}
+				setError(null);
 
-				// 检查嵌套的status对象
-				if (data.status && data.status.loaded) {
-					console.log("模型已加载完成");
-					setModelLoaded(true);
-					setModelLoading(false);
-					setError(null); // 清除之前的错误
-				} else if (data.status && data.status.loading) {
-					console.log("模型正在加载中...");
-					setModelLoaded(false);
-					setModelLoading(true);
-					
-					// 设置加载超时定时器，60秒后显示超时提示
-					loadingTimeoutId = setTimeout(() => {
-						setError("模型加载时间过长，可能是第一次加载或服务器资源不足");
-						setModelLoading(false);
-					}, 60000);
-					
-					setTimeout(checkModelStatus, 2000);
+				// 处理新的详细状态格式，同时保持向后兼容
+				const statusInfo = data.status || data.legacy_status;
+
+				if (statusInfo) {
+					// 新格式：检查 overall_status
+					if (statusInfo.overall_status === "ready" || statusInfo.loaded) {
+						console.log("模型已加载完成");
+						setModelStatus(MODEL_STATUS.LOADED);
+						clearTimeout(timeoutId);
+						return;
+					} else if (statusInfo.overall_status === "loading" || statusInfo.loading) {
+						console.log("模型仍在加载中...");
+						setModelStatus(MODEL_STATUS.RETRYING);
+						scheduleNextCheck();
+					} else if (statusInfo.overall_status === "failed") {
+						console.log("模型加载失败");
+						setError("AI模型加载失败，部分功能可能不可用");
+						setModelStatus(MODEL_STATUS.FAILED);
+						return;
+					} else {
+						console.log("模型状态未知，继续重试...");
+						setModelStatus(MODEL_STATUS.RETRYING);
+						scheduleNextCheck();
+					}
 				} else {
-					console.log("模型未加载，将在2秒后重试");
-					setModelLoaded(false);
-					setModelLoading(false);
-					setTimeout(checkModelStatus, 2000);
+					console.log("无法获取模型状态信息，继续重试...");
+					setModelStatus(MODEL_STATUS.RETRYING);
+					scheduleNextCheck();
 				}
-			} catch (error) {
-				console.error("获取模型状态出错:", error);
-				// 尝试使用更可靠的方式检查服务器连接
-				try {
-					// 直接检查服务器是否可访问
-					await fetch(`${API_BASE_URL}/ping`, { method: "GET", timeout: 2000 })
-						.then(response => {
-							if (response.ok) {
-								console.log("服务器可访问，但模型状态请求失败");
-								setError("服务器可访问，但模型状态请求失败，将重试");
-							}
-						})
-						.catch(() => {
-							console.error("服务器完全无法访问");
-							setError("无法连接到服务器，请检查后端服务是否运行");
-						});
-				} catch (e) {
-					console.error("服务器连接检查失败:", e);
-				}
-
-				// 无论如何，5秒后重试
-				setTimeout(checkModelStatus, 5000);
+			} catch (err) {
+				console.error("获取模型状态出错:", err);
+				setError(`获取模型状态失败: ${err.message}. 正在尝试重新连接...`);
+				setModelStatus(MODEL_STATUS.RETRYING);
+				scheduleNextCheck();
 			}
 		};
 
-		checkModelStatus();
+		const scheduleNextCheck = () => {
+			clearTimeout(timeoutId);
+			if (retryCount >= maxRetries) {
+				console.error("模型加载达到最大重试次数，停止检查。");
+				setError("模型加载超时，请检查后端服务或稍后重试。");
+				setModelStatus(MODEL_STATUS.FAILED);
+				return;
+			}
 
-		// 设置定期检查，确保状态保持最新
-		const intervalId = setInterval(checkModelStatus, 30000); // 每30秒检查一次
+			const delay = Math.min(initialDelay * Math.pow(2, retryCount), maxDelay);
+			console.log(`下一次检查将在 ${delay / 1000} 秒后进行`);
 
-		// 清理函数
+			timeoutId = setTimeout(() => {
+				retryCount++;
+				checkStatus();
+			}, delay);
+		};
+
+		// 开始检查
+		setModelStatus(MODEL_STATUS.LOADING);
+		checkStatus();
+
 		return () => {
-			clearInterval(intervalId);
-			if (loadingTimeoutId) {
-				clearTimeout(loadingTimeoutId);
-			}
+			clearTimeout(timeoutId);
 		};
-	}, []); // 移除API_BASE_URL依赖项，因为它是常量
+	}, [retryTrigger]); // 添加 retryTrigger 依赖
 
 	// 清除错误
 	const clearError = () => {
 		setError(null);
+		// 如果之前是失败状态，可以尝试重新触发检查
+		if (modelStatus === MODEL_STATUS.FAILED) {
+			console.log("用户触发重试...");
+			setModelStatus(MODEL_STATUS.LOADING);
+			setRetryTrigger(prev => prev + 1); // 改变状态以重新运行useEffect
+		}
+	};
+
+	// 手动重试函数 (用于按钮)
+	const triggerRetry = () => {
+		clearError();
+		console.log("手动触发模型状态检查...");
+		setModelStatus(MODEL_STATUS.LOADING);
+		setRetryTrigger(prev => prev + 1); // 改变状态以重新运行useEffect
 	};
 
 	return (
@@ -186,8 +215,13 @@ function App() {
 			{/* 内容容器 */}
 			<div className='content-container'>
 				<Container maxWidth='lg' sx={{ mt: 4, mb: 4 }}>
-					{/* 右上角状态指示器 */}
-					<Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 1000 }}>{!modelLoaded && !modelLoading ? <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型加载中...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} /> : modelLoading ? <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型正在加载...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} /> : <Chip icon={<CheckCircleIcon />} label='模型已加载' color='success' variant='outlined' sx={{ fontWeight: "medium" }} />}</Box>
+					{/* 右上角状态指示器 - 更新以反映新状态 */}
+					<Box sx={{ position: "absolute", top: 16, right: 16, zIndex: 1000 }}>
+						{modelStatus === MODEL_STATUS.LOADING && <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型加载中...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} />}
+						{modelStatus === MODEL_STATUS.RETRYING && <Chip icon={<CircularProgress size={16} color='inherit' />} label='模型加载中 (重试)...' color='warning' variant='outlined' sx={{ fontWeight: "medium" }} />}
+						{modelStatus === MODEL_STATUS.LOADED && <Chip icon={<CheckCircleIcon />} label='模型已加载' color='success' variant='outlined' sx={{ fontWeight: "medium" }} />}
+						{modelStatus === MODEL_STATUS.FAILED && <Chip icon={<ErrorIcon />} label='模型加载失败' color='error' variant='outlined' sx={{ fontWeight: "medium" }} />}
+					</Box>
 
 					<Box sx={{ mb: 4, textAlign: "center" }}>
 						<Typography variant='h1' component='h1' gutterBottom>
@@ -204,31 +238,10 @@ function App() {
 							variant='filled'
 							onClose={clearError}
 							action={
-								<Button 
-									color="inherit" 
-									size="small" 
-									onClick={() => {
-										clearError();
-										// 立即检查模型状态
-										fetch(`${API_BASE_URL}/status`)
-											.then(response => response.json())
-											.then(data => {
-												if (data.model_loaded || data.loaded) {
-													setModelLoaded(true);
-													setModelLoading(false);
-												} else if (data.loading) {
-													setModelLoaded(false);
-													setModelLoading(true);
-												}
-											})
-											.catch(() => {
-												// 如果状态检查失败，尝试ping端点
-												fetch(`${API_BASE_URL}/ping`, { method: "GET" })
-													.catch(() => {
-														setError("服务器仍然无法访问，请检查后端服务");
-													});
-											});
-									}}
+								<Button
+									color='inherit'
+									size='small'
+									onClick={triggerRetry} // 使用新的触发函数
 								>
 									重试
 								</Button>
@@ -248,7 +261,8 @@ function App() {
 					)}
 
 					<Paper elevation={3} sx={{ p: 0, mb: 4 }}>
-						<EmotionTabs modelLoaded={modelLoaded} apiBaseUrl={API_BASE_URL} setError={setError} />
+						{/* 将 modelStatus 传递给子组件 */}
+						<EmotionTabs modelStatus={modelStatus} apiBaseUrl={API_BASE_URL} setError={setError} />
 					</Paper>
 				</Container>
 			</div>

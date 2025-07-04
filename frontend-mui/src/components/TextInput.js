@@ -1,14 +1,24 @@
 import React, { useState } from "react";
-import { Box, Grid, Button, TextField, LinearProgress, FormControl, InputLabel, Select, MenuItem, Typography, Paper } from "@mui/material";
+import { Box, Grid, Button, TextField, LinearProgress, FormControl, InputLabel, Select, MenuItem, Typography, Paper, Alert, CircularProgress } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 
-function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedText, setError }) {
+// 定义模型加载状态常量 (与 App.js 保持一致)
+const MODEL_STATUS = {
+	IDLE: "idle",
+	LOADING: "loading",
+	RETRYING: "retrying",
+	LOADED: "loaded",
+	FAILED: "failed",
+};
+
+function TextInput({ modelStatus, apiBaseUrl, onAnalysisResult, setRecognizedText, setError }) {
 	// 状态变量
 	const [language, setLanguage] = useState("zh-CN");
 	const [textInput, setTextInput] = useState("");
 	const [status, setStatus] = useState("准备就绪");
 	const [progress, setProgress] = useState(0);
 	const [showProgress, setShowProgress] = useState(false);
+	const [analysing, setAnalysing] = useState(false);
 
 	// 验证输入
 	const validateInput = () => {
@@ -42,6 +52,7 @@ function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedTex
 		setStatus("分析中...");
 		setShowProgress(true);
 		setProgress(30);
+		setAnalysing(true);
 
 		try {
 			// 添加请求超时处理
@@ -91,12 +102,14 @@ function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedTex
 				setShowProgress(false);
 				setProgress(0);
 				setStatus("分析完成");
+				setAnalysing(false);
 			}, 500);
 		} catch (error) {
 			console.error("分析文本出错:", error);
 			setStatus("分析出错");
 			setShowProgress(false);
 			setProgress(0);
+			setAnalysing(false);
 			
 			// 更详细的错误信息
 			if (error.name === 'AbortError') {
@@ -164,11 +177,17 @@ function TextInput({ modelLoaded, apiBaseUrl, onAnalysisResult, setRecognizedTex
 						}}
 					/>
 
-					<Button variant='contained' color='primary' onClick={analyzeText} disabled={!modelLoaded || !textInput.trim()} startIcon={<SendIcon />} sx={{ minWidth: 120 }}>
-						分析文本
+					<Button variant='contained' color='primary' onClick={analyzeText} disabled={modelStatus !== MODEL_STATUS.LOADED || !textInput.trim()} startIcon={<SendIcon />} sx={{ minWidth: 120 }}>
+						{analysing ? <CircularProgress size={24} color='inherit' /> : "分析文本"}
 					</Button>
 				</Grid>
 			</Grid>
+
+			{modelStatus !== MODEL_STATUS.LOADED && (
+				<Alert severity='warning' sx={{ mt: 2 }}>
+					模型正在加载中，加载完成后即可分析文本。
+				</Alert>
+			)}
 		</Box>
 	);
 }

@@ -21,7 +21,16 @@ const RecordingAnimation = styled("div")(({ theme }) => ({
 	},
 }));
 
-function SpeechInput({ modelLoaded, apiBaseUrl, onRecognitionResult, recognizedText, setError }) {
+// 定义模型加载状态常量 (与 App.js 保持一致)
+const MODEL_STATUS = {
+	IDLE: "idle",
+	LOADING: "loading",
+	RETRYING: "retrying",
+	LOADED: "loaded",
+	FAILED: "failed",
+};
+
+function SpeechInput({ modelStatus, apiBaseUrl, onRecognitionResult, recognizedText, setError }) {
 	// 状态变量
 	const [language, setLanguage] = useState("zh-CN");
 	const [isRecording, setIsRecording] = useState(false);
@@ -45,9 +54,9 @@ function SpeechInput({ modelLoaded, apiBaseUrl, onRecognitionResult, recognizedT
 
 	// 开始/停止录音
 	const toggleRecording = async () => {
-		// 如果模型未加载，显示提示
-		if (!modelLoaded) {
-			setError("模型正在加载中，请稍后再试");
+		// 检查模型是否加载完成
+		if (modelStatus !== MODEL_STATUS.LOADED) {
+			setError("模型尚未加载完成，请稍后重试。");
 			return;
 		}
 		
@@ -260,11 +269,11 @@ function SpeechInput({ modelLoaded, apiBaseUrl, onRecognitionResult, recognizedT
 					</FormControl>
 
 					<Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-						<Button variant={isRecording ? "contained" : "outlined"} color={isRecording ? "secondary" : "primary"} onClick={toggleRecording} disabled={!modelLoaded} startIcon={isRecording ? <StopIcon /> : <MicIcon />} sx={{ flexGrow: 1 }}>
+						<Button variant={isRecording ? "contained" : "outlined"} color={isRecording ? "secondary" : "primary"} onClick={toggleRecording} disabled={modelStatus !== MODEL_STATUS.LOADED} startIcon={isRecording ? <StopIcon /> : <MicIcon />} sx={{ flexGrow: 1 }}>
 							{isRecording ? "停止录音" : "开始录音"}
 						</Button>
 
-						<Button variant='outlined' color='primary' onClick={() => fileInputRef.current.click()} disabled={!modelLoaded || isRecording} startIcon={<UploadFileIcon />} sx={{ flexGrow: 1 }}>
+						<Button variant='outlined' color='primary' onClick={() => fileInputRef.current.click()} disabled={modelStatus !== MODEL_STATUS.LOADED || isRecording} startIcon={<UploadFileIcon />} sx={{ flexGrow: 1 }}>
 							上传音频文件
 						</Button>
 						<input type='file' ref={fileInputRef} onChange={handleFileUpload} accept='.wav,.mp3,.flac' style={{ display: "none" }} />
